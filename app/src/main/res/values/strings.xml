@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 
 <!DOCTYPE resources [
-    <!ENTITY TERMUX_PACKAGE_NAME "com.termos">
-    <!ENTITY TERMUX_APP_NAME "Termos">
+    <!ENTITY TERMUX_PACKAGE_NAME "com.xterm">
+    <!ENTITY TERMUX_APP_NAME "xterm">
     <!ENTITY TERMUX_API_APP_NAME "Termux:API">
     <!ENTITY TERMUX_BOOT_APP_NAME "Termux:Boot">
     <!ENTITY TERMUX_FLOAT_APP_NAME "Termux:Float">
@@ -232,17 +232,8 @@
 
 
 
-    <!-- Rootfs Setup Preference -->
-    <string name="rootfs_setup_preference_title">Rootfs Setup</string>
-    <string name="rootfs_setup_preference_summary">Install or manage Linux rootfs</string>
-
-    <!-- Install OS Preference -->
-    <string name="install_os_preference_title">Install OS</string>
-    <string name="install_os_preference_summary">Install desktop environment and VNC server for OS tab</string>
-
     <!-- Tab Titles -->
     <string name="tab_terminal_title">Terminal</string>
-    <string name="tab_os_title">OS</string>
 
     <!-- About Preference -->
     <string name="about_preference_title">About</string>
@@ -250,28 +241,7 @@
     <!-- Donate Preference -->
     <string name="donate_preference_title">Donate</string>
 
-    <!-- VNC Settings -->
-    <string-array name="vnc_viewer_type_entries">
-        <item>Built-in Viewer</item>
-        <item>External App (RVNC Viewer)</item>
-        <item>External App (RealVNC Viewer)</item>
-    </string-array>
-    <string-array name="vnc_viewer_type_values">
-        <item>builtin</item>
-        <item>rvnc</item>
-        <item>realvnc</item>
-    </string-array>
-
-    <string-array name="vnc_input_mode_entries">
-        <item>Touch Mode</item>
-        <item>Mouse Mode</item>
-    </string-array>
-    <string-array name="vnc_input_mode_values">
-        <item>touch</item>
-        <item>mouse</item>
-    </string-array>
-
-    <!-- AVNC Preference Strings -->
+    <!-- Preference strings (legacy, some may be unused) -->
     <string name="title_settings">Settings</string>
     <string name="pref_ui">Appearance</string>
     <string name="pref_ui_summary">Theme, toolbar and gesture settings</string>

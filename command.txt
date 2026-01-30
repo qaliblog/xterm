@@ -1,5 +1,5 @@
 # Commands to test VNC and XFCE desktop
-# Copy and paste these commands one by one into termos terminal
+# Copy and paste these commands one by one into xterm terminal
 
 # ============================================
 # DEBUG: Check why desktop isn't showing (run these after VNC starts)

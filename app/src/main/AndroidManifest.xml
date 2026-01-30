@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.termos"
+    package="com.xterm"
     android:installLocation="internalOnly"
     android:sharedUserId="${TERMUX_PACKAGE_NAME}"
     android:sharedUserLabel="@string/shared_user_label">
@@ -105,20 +105,6 @@
             android:exported="true"
             android:label="@string/title_activity_termux_settings"
             android:theme="@style/Theme.TermuxApp.DayNight.NoActionBar" />
-
-        <activity
-            android:name=".app.activities.RootfsSetupActivity"
-            android:exported="false"
-            android:label="Rootfs Setup"
-            android:theme="@style/Theme.TermuxApp.DayNight.NoActionBar"
-            android:noHistory="true" />
-
-        <activity
-            android:name=".app.activities.InstallOSActivity"
-            android:exported="false"
-            android:label="Install OS"
-            android:theme="@style/Theme.TermuxApp.DayNight.NoActionBar"
-            android:noHistory="true" />
 
         <activity
             android:name=".shared.activities.ReportActivity"

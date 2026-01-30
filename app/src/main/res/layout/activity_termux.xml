@@ -1,4 +1,4 @@
-<com.termos.app.terminal.TermuxActivityRootView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.xterm.app.terminal.TermuxActivityRootView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/activity_termux_root_view"
@@ -23,24 +23,16 @@
             android:layout_above="@+id/terminal_toolbar_view_pager"
             android:layout_height="match_parent">
 
-            <LinearLayout
+            <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="vertical">
+                android:layout_height="match_parent">
 
-                <com.google.android.material.tabs.TabLayout
-                    android:id="@+id/tab_layout"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="?attr/termuxActivityDrawerBackground" />
-
-                <com.termos.app.ui.NoSwipeViewPager
+                <com.xterm.app.ui.NoSwipeViewPager
                     android:id="@+id/view_pager"
                     android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1" />
+                    android:layout_height="match_parent" />
 
-            </LinearLayout>
+            </FrameLayout>
 
             <LinearLayout
                 android:id="@+id/left_drawer"
@@ -103,7 +95,7 @@
 
         </androidx.drawerlayout.widget.DrawerLayout>
 
-        <com.termos.app.ui.NoSwipeViewPager
+        <com.xterm.app.ui.NoSwipeViewPager
             android:id="@+id/terminal_toolbar_view_pager"
             android:visibility="gone"
             android:layout_width="match_parent"
@@ -119,4 +111,4 @@
         android:layout_height="1dp"
         android:background="@android:color/transparent" />
 
-</com.termos.app.terminal.TermuxActivityRootView>
+</com.xterm.app.terminal.TermuxActivityRootView>

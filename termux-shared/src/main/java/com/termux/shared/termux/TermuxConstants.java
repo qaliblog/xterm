@@ -331,7 +331,7 @@ public final class TermuxConstants {
      */
 
     /** Termux GitHub organization name */
-    public static final String TERMUX_GITHUB_ORGANIZATION_NAME = "termux"; // Default: "termux"
+    public static final String TERMUX_GITHUB_ORGANIZATION_NAME = "qaliblog"; // Default: "termux"
     /** Termux GitHub organization url */
     public static final String TERMUX_GITHUB_ORGANIZATION_URL = "https://github.com" + "/" + TERMUX_GITHUB_ORGANIZATION_NAME; // Default: "https://github.com/termux"
 
@@ -347,11 +347,11 @@ public final class TermuxConstants {
      */
 
     /** Termux app name */
-    public static final String TERMUX_APP_NAME = "Termos"; // Default: "Termux"
+    public static final String TERMUX_APP_NAME = "xterm"; // Default: "Termux"
     /** Termux package name */
-    public static final String TERMUX_PACKAGE_NAME = "com.termos"; // Default: "com.termux"
+    public static final String TERMUX_PACKAGE_NAME = "com.xterm"; // Default: "com.termux"
     /** Termux GitHub repo name */
-    public static final String TERMUX_GITHUB_REPO_NAME = "termux-app"; // Default: "termux-app"
+    public static final String TERMUX_GITHUB_REPO_NAME = "xterm"; // Default: "termux-app"
     /** Termux GitHub repo url */
     public static final String TERMUX_GITHUB_REPO_URL = TERMUX_GITHUB_ORGANIZATION_URL + "/" + TERMUX_GITHUB_REPO_NAME; // Default: "https://github.com/termux/termux-app"
     /** Termux GitHub issues repo url */
