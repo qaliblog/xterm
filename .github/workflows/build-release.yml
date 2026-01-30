@@ -96,7 +96,7 @@ jobs:
         echo "$APK_FILES"
 
     - name: Upload APK artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: termos-release-apk
         path: |
@@ -111,7 +111,7 @@ jobs:
         done
 
     - name: Upload checksums
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: termos-release-checksums
         path: app/build/outputs/apk/*.sha256
