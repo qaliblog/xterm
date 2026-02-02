@@ -110,8 +110,8 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
 
     @NonNull
     @Override
-    public String[] setupShellCommandArguments(@NonNull String executable, String[] arguments) {
-        return TermuxShellUtils.setupShellCommandArguments(executable, arguments);
+    public String[] setupShellCommandArguments(@NonNull Context currentPackageContext, @NonNull String executable, String[] arguments) {
+        return TermuxShellUtils.setupShellCommandArguments(currentPackageContext, executable, arguments);
     }
 
 }

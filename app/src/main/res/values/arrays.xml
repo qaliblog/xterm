@@ -183,4 +183,12 @@
         <item>end</item>
     </string-array>
 
+    <string-array name="os_types">
+        <item>Alpine</item>
+        <item>Debian</item>
+        <item>Ubuntu</item>
+        <item>Arch</item>
+        <item>Kali</item>
+    </string-array>
+
 </resources>

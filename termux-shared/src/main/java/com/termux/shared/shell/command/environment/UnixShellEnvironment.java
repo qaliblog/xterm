@@ -71,7 +71,7 @@ public abstract class UnixShellEnvironment implements IShellEnvironment {
 
     @NonNull
     @Override
-    public String[] setupShellCommandArguments(@NonNull String executable, @Nullable String[] arguments) {
+    public String[] setupShellCommandArguments(@NonNull Context currentPackageContext, @NonNull String executable, @Nullable String[] arguments) {
         return ShellUtils.setupShellCommandArguments(executable, arguments);
     }
 

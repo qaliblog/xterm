@@ -4,12 +4,15 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.system.Os;
 import android.util.Pair;
 import android.view.WindowManager;
 
+import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.xterm.R;
 import com.termux.shared.file.FileUtils;
 import com.termux.shared.termux.crash.TermuxCrashUtils;
@@ -26,12 +29,18 @@ import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.IOException;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.apache.commons.compress.compressors.xz.XZCompressorInputStream;
 
 import static com.termux.shared.termux.TermuxConstants.TERMUX_PREFIX_DIR;
 import static com.termux.shared.termux.TermuxConstants.TERMUX_PREFIX_DIR_PATH;
@@ -66,23 +75,227 @@ final class TermuxInstaller {
      * This method now just ensures directories exist and runs whenDone immediately.
      */
     static void setupBootstrapIfNeeded(final Activity activity, final Runnable whenDone) {
-        // Termos uses rootfs-based Linux runtime, not Termux bootstrap
-        // Just ensure basic directory structure exists
-        try {
-            File filesDir = activity.getFilesDir();
-            if (filesDir != null && !filesDir.exists()) {
-                filesDir.mkdirs();
-            }
-            // Run immediately - no bootstrap installation needed
-            whenDone.run();
-            return;
-        } catch (Exception e) {
-            Logger.logError(LOG_TAG, "Error in setupBootstrapIfNeeded: " + e.getMessage());
+        TermuxAppSharedPreferences preferences = TermuxAppSharedPreferences.build(activity);
+        if (preferences == null) {
             whenDone.run();
             return;
         }
-        
-        /* ORIGINAL BOOTSTRAP CODE DISABLED - Termos uses rootfs instead
+
+        if (!preferences.isRootfsInstalled()) {
+            Intent intent = new Intent(activity, com.xterm.app.activities.SetupActivity.class);
+            activity.startActivityForResult(intent, 1234);
+            return;
+        }
+
+        whenDone.run();
+    }
+
+    public static void installRootfs(final Activity activity, final Runnable whenDone) {
+        final ProgressDialog progress = ProgressDialog.show(activity, null, "Initializing terminal...", true, false);
+        new Thread() {
+            @Override
+            public void run() {
+                try {
+                    TermuxAppSharedPreferences preferences = TermuxAppSharedPreferences.build(activity);
+                    if (preferences == null) return;
+
+                    // 1. Ensure basic directory structure
+                    File filesDir = activity.getFilesDir();
+                    if (!filesDir.exists()) filesDir.mkdirs();
+
+                    File rootfsDir = new File(filesDir, "rootfs");
+                    FileUtils.clearDirectory("rootfs", rootfsDir.getAbsolutePath());
+
+                    // 2. Install "needed assets" (proot)
+                    installNeededAssets(activity);
+
+                    // 3. Install Rootfs bundle
+                    String url = preferences.getRootfsBundleUrl();
+                    String localPath = preferences.getRootfsBundleLocalPath();
+
+                    if (localPath != null) {
+                        installLocalRootfs(activity, Uri.parse(localPath), rootfsDir);
+                    } else if (url != null) {
+                        installRemoteRootfs(url, rootfsDir);
+                    }
+
+                    preferences.setRootfsInstalled(true);
+                    activity.runOnUiThread(whenDone);
+                } catch (final Exception e) {
+                    Logger.logStackTraceWithMessage(LOG_TAG, "Failed to install rootfs", e);
+                    activity.runOnUiThread(() -> {
+                        new AlertDialog.Builder(activity)
+                            .setTitle("Installation Failed")
+                            .setMessage(e.getMessage())
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show();
+                    });
+                } finally {
+                    activity.runOnUiThread(progress::dismiss);
+                }
+            }
+        }.start();
+    }
+
+    private static void installNeededAssets(Context context) throws Exception {
+        String arch = getArch();
+        File binDir = new File(context.getFilesDir(), "bin");
+        if (!binDir.exists()) binDir.mkdirs();
+
+        File prootFile = new File(binDir, "proot");
+        Logger.logInfo(LOG_TAG, "Installing bundled proot for " + arch);
+        try (java.io.InputStream in = context.getAssets().open("bin/proot-" + arch);
+             java.io.FileOutputStream out = new java.io.FileOutputStream(prootFile)) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+            }
+        }
+        Os.chmod(prootFile.getAbsolutePath(), 0700);
+
+        // Also ensure Termux bootstrap is available as base
+        File usrDir = new File(context.getFilesDir(), "usr");
+        if (!usrDir.exists() || FileUtils.isTermuxPrefixDirectoryEmpty()) {
+            Logger.logInfo(LOG_TAG, "Installing bundled Termux bootstrap");
+            try (java.io.InputStream in = context.getAssets().open("bootstraps/bootstrap-" + arch + ".zip")) {
+                extractZip(in, usrDir);
+            }
+        }
+    }
+
+    private static String getArch() {
+        for (String abi : Build.SUPPORTED_ABIS) {
+            if (abi.contains("arm64") || abi.contains("aarch64")) return "aarch64";
+            if (abi.contains("armeabi") || abi.contains("arm")) return "arm";
+            if (abi.contains("x86_64")) return "x86_64";
+            if (abi.contains("x86") || abi.contains("i686")) return "i686";
+        }
+        return "aarch64"; // fallback
+    }
+
+    private static void downloadFile(String urlStr, File dest) throws IOException {
+        java.net.URL url = new java.net.URL(urlStr);
+        java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+        conn.setConnectTimeout(10000);
+        conn.setReadTimeout(60000);
+        try (java.io.InputStream in = conn.getInputStream();
+             java.io.FileOutputStream out = new java.io.FileOutputStream(dest)) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+            }
+        }
+    }
+
+    private static void installLocalRootfs(Context context, Uri uri, File destDir) throws Exception {
+        try (java.io.InputStream in = context.getContentResolver().openInputStream(uri)) {
+            extractBundle(in, uri.toString(), destDir);
+        }
+    }
+
+    private static void installRemoteRootfs(String url, File destDir) throws Exception {
+        File tempFile = File.createTempFile("rootfs", ".tmp");
+        try {
+            downloadFile(url, tempFile);
+            try (java.io.InputStream in = new java.io.FileInputStream(tempFile)) {
+                extractBundle(in, url, destDir);
+            }
+        } finally {
+            tempFile.delete();
+        }
+    }
+
+    private static void extractBundle(java.io.InputStream in, String fileName, File destDir) throws Exception {
+        if (fileName.endsWith(".zip")) {
+            extractZip(in, destDir);
+        } else if (fileName.endsWith(".tar.gz") || fileName.endsWith(".tgz")) {
+            extractTar(in, destDir, "gzip");
+        } else if (fileName.endsWith(".tar.xz")) {
+            extractTar(in, destDir, "xz");
+        } else if (fileName.endsWith(".tar")) {
+            extractTar(in, destDir, null);
+        } else {
+            // Default to tar.gz if unknown extension but likely a rootfs
+            try {
+                extractTar(in, destDir, "gzip");
+            } catch (Exception e) {
+                throw new Exception("Unsupported rootfs bundle format. Supported: .zip, .tar.gz, .tar.xz");
+            }
+        }
+    }
+
+    private static void extractZip(java.io.InputStream in, File destDir) throws IOException {
+        try (ZipInputStream zipIn = new ZipInputStream(in)) {
+            ZipEntry entry;
+            while ((entry = zipIn.getNextEntry()) != null) {
+                File file = new File(destDir, entry.getName());
+                if (entry.isDirectory()) {
+                    file.mkdirs();
+                } else {
+                    file.getParentFile().mkdirs();
+                    try (FileOutputStream out = new FileOutputStream(file)) {
+                        byte[] buffer = new byte[8192];
+                        int read;
+                        while ((read = zipIn.read(buffer)) != -1) {
+                            out.write(buffer, 0, read);
+                        }
+                    }
+                    if (entry.getName().contains("bin/")) {
+                        try { Os.chmod(file.getAbsolutePath(), 0700); } catch (Exception e) {}
+                    }
+                }
+            }
+        }
+    }
+
+    private static void extractTar(java.io.InputStream in, File destDir, String compression) throws Exception {
+        java.io.InputStream decompressed;
+        if ("gzip".equals(compression)) {
+            decompressed = new GzipCompressorInputStream(in);
+        } else if ("xz".equals(compression)) {
+            decompressed = new XZCompressorInputStream(in);
+        } else {
+            decompressed = in;
+        }
+
+        try (TarArchiveInputStream tarIn = new TarArchiveInputStream(decompressed)) {
+            TarArchiveEntry entry;
+            while ((entry = tarIn.getNextTarEntry()) != null) {
+                File file = new File(destDir, entry.getName());
+                if (entry.isDirectory()) {
+                    file.mkdirs();
+                } else {
+                    file.getParentFile().mkdirs();
+                    if (entry.isSymbolicLink()) {
+                        try { Os.symlink(entry.getLinkName(), file.getAbsolutePath()); } catch (Exception e) {}
+                    } else if (entry.isLink()) {
+                         // Hard link - not easily supported in Java, skip or try to copy
+                    } else {
+                        try (FileOutputStream out = new FileOutputStream(file)) {
+                            byte[] buffer = new byte[8192];
+                            int read;
+                            while ((read = tarIn.read(buffer)) != -1) {
+                                out.write(buffer, 0, read);
+                            }
+                        }
+                        // Set permissions if it's in a bin directory or has mode
+                        try {
+                            int mode = entry.getMode();
+                            if (mode != 0) {
+                                Os.chmod(file.getAbsolutePath(), mode);
+                            } else if (entry.getName().contains("bin/")) {
+                                Os.chmod(file.getAbsolutePath(), 0700);
+                            }
+                        } catch (Exception e) {}
+                    }
+                }
+            }
+        }
+    }
+
+    /* ORIGINAL BOOTSTRAP CODE DISABLED - Termos uses rootfs instead
         String bootstrapErrorMessage;
         String bootstrapErrorMessage;
         Error filesDirectoryAccessibleError;

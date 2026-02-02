@@ -31,12 +31,13 @@ public interface IShellEnvironment {
     /**
      * Setup shell command arguments for the file to execute, like interpreter, etc.
      *
+     * @param currentPackageContext The {@link Context} for the current package.
      * @param fileToExecute The file to execute.
      * @param arguments The arguments to pass to the executable.
      * @return Should return the final process arguments.
      */
     @NonNull
-    String[] setupShellCommandArguments(@NonNull String fileToExecute, @Nullable String[] arguments);
+    String[] setupShellCommandArguments(@NonNull Context currentPackageContext, @NonNull String fileToExecute, @Nullable String[] arguments);
 
     /**
      * Setup shell command environment to be used for commands.

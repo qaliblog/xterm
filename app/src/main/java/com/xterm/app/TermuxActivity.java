@@ -193,6 +193,8 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
     private static final String ARG_TERMINAL_TOOLBAR_TEXT_INPUT = "terminal_toolbar_text_input";
     private static final String ARG_ACTIVITY_RECREATED = "activity_recreated";
 
+    public static final int REQUEST_CODE_SETUP_ROOTFS = 1234;
+
     private static final String LOG_TAG = "TermuxActivity";
 
     @Override
@@ -835,6 +837,16 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
         Logger.logVerbose(LOG_TAG, "onActivityResult: requestCode: " + requestCode + ", resultCode: "  + resultCode + ", data: "  + IntentUtils.getIntentString(data));
         if (requestCode == PermissionUtils.REQUEST_GRANT_STORAGE_PERMISSION) {
             requestStoragePermission(true);
+        } else if (requestCode == REQUEST_CODE_SETUP_ROOTFS) {
+            if (resultCode == Activity.RESULT_OK) {
+                // Rootfs setup finished, now we can add session if none exists
+                if (mTermuxService != null && mTermuxService.isTermuxSessionsEmpty()) {
+                    mTermuxTerminalSessionActivityClient.addNewSession(false, null);
+                }
+            } else {
+                // Setup failed or cancelled
+                finishActivityIfNotFinishing();
+            }
         }
     }
 
