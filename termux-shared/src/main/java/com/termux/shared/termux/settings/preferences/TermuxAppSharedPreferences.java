@@ -282,4 +282,38 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
         SharedPreferenceUtils.setString(mSharedPreferences, KEY_VNC_INPUT_MODE, value, false);
     }
 
+
+
+    public boolean isRootfsInstalled() {
+        return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_INSTALLED, TERMUX_APP.DEFAULT_VALUE_ROOTFS_INSTALLED);
+    }
+
+    public void setRootfsInstalled(boolean value) {
+        SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_INSTALLED, value, false);
+    }
+
+    public String getRootfsOsType() {
+        return SharedPreferenceUtils.getString(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_OS_TYPE, TERMUX_APP.DEFAULT_VALUE_ROOTFS_OS_TYPE, false);
+    }
+
+    public void setRootfsOsType(String value) {
+        SharedPreferenceUtils.setString(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_OS_TYPE, value, false);
+    }
+
+    public String getRootfsBundleUrl() {
+        return SharedPreferenceUtils.getString(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_BUNDLE_URL, null, false);
+    }
+
+    public void setRootfsBundleUrl(String value) {
+        SharedPreferenceUtils.setString(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_BUNDLE_URL, value, false);
+    }
+
+    public String getRootfsBundleLocalPath() {
+        return SharedPreferenceUtils.getString(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_BUNDLE_LOCAL_PATH, null, false);
+    }
+
+    public void setRootfsBundleLocalPath(String value) {
+        SharedPreferenceUtils.setString(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_BUNDLE_LOCAL_PATH, value, false);
+    }
+
 }

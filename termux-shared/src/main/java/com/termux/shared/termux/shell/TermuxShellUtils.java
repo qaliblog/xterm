@@ -3,9 +3,12 @@ package com.termux.shared.termux.shell;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import android.content.Context;
+
 import com.termux.shared.errors.Error;
 import com.termux.shared.file.filesystem.FileTypes;
 import com.termux.shared.termux.TermuxConstants;
+import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.shared.file.FileUtils;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.termux.settings.properties.TermuxAppSharedProperties;
@@ -28,7 +31,44 @@ public class TermuxShellUtils {
      * command arguments if needed.
      */
     @NonNull
-    public static String[] setupShellCommandArguments(@NonNull String executable, @Nullable String[] arguments) {
+    public static String[] setupShellCommandArguments(@NonNull Context currentPackageContext, @NonNull String executable, @Nullable String[] arguments) {
+        TermuxAppSharedPreferences preferences = TermuxAppSharedPreferences.build(currentPackageContext);
+        if (preferences != null && preferences.isRootfsInstalled()) {
+            List<String> prootArgs = new ArrayList<>();
+            String filesDir = currentPackageContext.getFilesDir().getAbsolutePath();
+            prootArgs.add(filesDir + "/bin/proot");
+            prootArgs.add("-r");
+            prootArgs.add(filesDir + "/rootfs");
+            prootArgs.add("-0");
+            prootArgs.add("-w");
+            prootArgs.add("/root");
+            prootArgs.add("-b");
+            prootArgs.add("/dev");
+            prootArgs.add("-b");
+            prootArgs.add("/proc");
+            prootArgs.add("-b");
+            prootArgs.add("/sys");
+            prootArgs.add("-b");
+            prootArgs.add("/sdcard");
+
+            String osType = preferences.getRootfsOsType();
+            String shell = "/bin/sh";
+            if ("ubuntu".equals(osType) || "debian".equals(osType) || "kali".equals(osType) || "arch".equals(osType)) {
+                shell = "/bin/bash";
+            }
+
+            // Check if preferred shell exists in rootfs, fallback to /bin/sh
+            File rootfsDirFile = new File(filesDir + "/rootfs");
+            if (!new File(rootfsDirFile, shell).exists()) {
+                shell = "/bin/sh";
+            }
+
+            prootArgs.add(shell);
+            prootArgs.add("-l"); // login shell
+
+            return prootArgs.toArray(new String[0]);
+        }
+
         // The file to execute may either be:
         // - An elf file, in which we execute it directly.
         // - A script file without shebang, which we execute with our standard shell $PREFIX/bin/sh instead of the

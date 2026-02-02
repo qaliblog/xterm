@@ -102,7 +102,7 @@ public final class AppShell {
             executionCommand.commandLabel = executableBasename;
 
         // Setup command args
-        final String[] commandArray = shellEnvironmentClient.setupShellCommandArguments(executionCommand.executable, executionCommand.arguments);
+        final String[] commandArray = shellEnvironmentClient.setupShellCommandArguments(currentPackageContext, executionCommand.executable, executionCommand.arguments);
 
         // Setup command environment
         HashMap<String, String> environment = shellEnvironmentClient.setupShellCommandEnvironment(currentPackageContext,

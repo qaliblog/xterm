@@ -180,6 +180,29 @@ public final class TermuxPreferenceConstants {
         public static final String KEY_CRASH_REPORT_NOTIFICATIONS_ENABLED = "crash_report_notifications_enabled";
         public static final boolean DEFAULT_VALUE_CRASH_REPORT_NOTIFICATIONS_ENABLED = true;
 
+
+        /**
+         * Defines the key for whether rootfs is installed.
+         */
+        public static final String KEY_ROOTFS_INSTALLED = "rootfs_installed";
+        public static final boolean DEFAULT_VALUE_ROOTFS_INSTALLED = false;
+
+        /**
+         * Defines the key for rootfs OS type.
+         */
+        public static final String KEY_ROOTFS_OS_TYPE = "rootfs_os_type";
+        public static final String DEFAULT_VALUE_ROOTFS_OS_TYPE = "alpine";
+
+        /**
+         * Defines the key for rootfs bundle URL.
+         */
+        public static final String KEY_ROOTFS_BUNDLE_URL = "rootfs_bundle_url";
+
+        /**
+         * Defines the key for rootfs bundle local path.
+         */
+        public static final String KEY_ROOTFS_BUNDLE_LOCAL_PATH = "rootfs_bundle_local_path";
+
     }
 
 
