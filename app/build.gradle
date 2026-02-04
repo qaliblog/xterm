@@ -280,11 +280,18 @@ def downloadBootstrap(String arch, String expectedChecksum, String version) {
     downloadAsset(remoteUrl, assetUrl, expectedChecksum)
 }
 
-def downloadProot(String arch, String expectedChecksum) {
-    def version = "v5.1.107"
-    def remoteUrl = "https://github.com/termux/proot/releases/download/" + version + "/proot-" + version + "-" + arch
-    def localUrl = "src/main/assets/bin/proot-" + arch
-    downloadAsset(remoteUrl, localUrl, expectedChecksum)
+def downloadProot(String arch, String expectedChecksum, String remoteUrl) {
+    def localZip = "src/main/assets/bin/proot-" + arch + ".zip"
+    downloadAsset(remoteUrl, localZip, expectedChecksum)
+
+    // Extract proot from zip
+    copy {
+        from zipTree(new File(projectDir, localZip))
+        into new File(projectDir, "src/main/assets/bin")
+        include "proot"
+        rename "proot", "proot-" + arch
+    }
+    new File(projectDir, localZip).delete()
 }
 
 clean {
@@ -315,10 +322,11 @@ task downloadBootstraps() {
         }
 
         // Download proot binaries
-        downloadProot("aarch64", "8828943806307994998084a37543d3b7305988d44747c3272d16eb71970b1351")
-        downloadProot("arm", "d95ca315570081d59f3334237f37f3000676451e50586940a049d5926ec03b9b")
-        downloadProot("i686", "1a33756247c43317e33527962c6f1406180735848c78477740f1a9b990994f83")
-        downloadProot("x86_64", "f80907d72c1c1f5926ca10b14421b8c1c4f52e5059e665975618b76c8c6f2dfa")
+        def userlandUrl = "https://github.com/CypherpunkArmory/UserLAnd-Assets-Support/releases/download/v1.0.0/"
+        downloadProot("aarch64", "4bd808c7c17a9c281ad5c5c140ba9770861e4707eb089bcc14a7d15454f82e53", userlandUrl + "arm64-v8a-assets.zip")
+        downloadProot("arm", "ac8fbdf3768ec923b440a337b09bfff21b7910ef5c22a32426bbda30b90659f4", userlandUrl + "armeabi-v7a-assets.zip")
+        downloadProot("i686", "2b2c8562a90099579d1fc8a9c3a9d062a0859aba0e2050b8655ac3053c10bdd6", userlandUrl + "x86-assets.zip")
+        downloadProot("x86_64", "d5473b60b53a83635f1a44937a30682fd573cf5ddcfb75dd35c9161852e96288", userlandUrl + "x86_64-assets.zip")
     }
 }
 
