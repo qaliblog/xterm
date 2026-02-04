@@ -39,7 +39,7 @@ allprojects {
     configurations.all {
         resolutionStrategy {
             // Force AndroidX versions and exclude support library duplicates
-            force 'androidx.core:core:1.7.0'
+            force 'androidx.core:core:1.12.0'
             force 'androidx.versionedparcelable:versionedparcelable:1.1.1'
             force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.23'
             force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.23'
