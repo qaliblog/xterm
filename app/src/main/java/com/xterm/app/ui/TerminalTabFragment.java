@@ -11,7 +11,7 @@ import androidx.fragment.app.Fragment;
 
 import com.xterm.app.TermuxActivity;
 import com.termux.view.TerminalView;
-import com.xterm.R;
+import com.xterm.app.R;
 
 /**
  * Fragment containing the Terminal tab.

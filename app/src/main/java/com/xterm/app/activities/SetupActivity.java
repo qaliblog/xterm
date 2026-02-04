@@ -13,7 +13,7 @@ import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.xterm.R;
+import com.xterm.app.R;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.xterm.app.TermuxInstaller;
 

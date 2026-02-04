@@ -26,7 +26,7 @@ import android.widget.ListView;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
 
-import com.xterm.R;
+import com.xterm.app.R;
 import com.xterm.app.api.file.FileReceiverActivity;
 import com.xterm.app.terminal.TermuxActivityRootView;
 import com.xterm.app.ui.TermosTabAdapter;

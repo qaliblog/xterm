@@ -11,7 +11,7 @@ import android.provider.DocumentsContract.Root;
 import android.provider.DocumentsProvider;
 import android.webkit.MimeTypeMap;
 
-import com.xterm.R;
+import com.xterm.app.R;
 import com.termux.shared.termux.TermuxConstants;
 
 import java.io.File;

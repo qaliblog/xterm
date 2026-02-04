@@ -3,7 +3,7 @@ package com.xterm.app;
 import android.app.Application;
 import android.content.Context;
 
-import com.xterm.BuildConfig;
+import com.xterm.app.BuildConfig;
 import com.termux.shared.errors.Error;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.termux.TermuxBootstrap;
