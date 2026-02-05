@@ -38,6 +38,10 @@ public class TermuxShellUtils {
             String filesDir = currentPackageContext.getFilesDir().getAbsolutePath();
             File rootfsDirFile = new File(filesDir + "/rootfs");
 
+            if (!rootfsDirFile.exists() || !rootfsDirFile.isDirectory()) {
+                Logger.logError(LOG_TAG, "Rootfs directory does not exist: " + rootfsDirFile.getAbsolutePath());
+            }
+
             prootArgs.add(filesDir + "/bin/proot");
             prootArgs.add("-r");
             prootArgs.add(rootfsDirFile.getAbsolutePath());
@@ -63,41 +67,69 @@ public class TermuxShellUtils {
 
             String osType = preferences.getRootfsOsType();
 
-            // Detect shells inside rootfs
-            String shell = "/bin/sh";
+            // Comprehensive shell detection
+            String shell = null;
+            String[] commonShells = {"/bin/bash", "/usr/bin/bash", "/bin/sh", "/usr/bin/sh"};
+
+            // Try to find the preferred shell first
             if ("ubuntu".equals(osType) || "debian".equals(osType) || "kali".equals(osType) || "arch".equals(osType)) {
-                if (new File(rootfsDirFile, "/bin/bash").exists()) {
-                    shell = "/bin/bash";
-                } else if (new File(rootfsDirFile, "/usr/bin/bash").exists()) {
-                    shell = "/usr/bin/bash";
-                }
-            } else {
-                if (new File(rootfsDirFile, "/bin/sh").exists()) {
-                    shell = "/bin/sh";
-                } else if (new File(rootfsDirFile, "/usr/bin/sh").exists()) {
-                    shell = "/usr/bin/sh";
+                if (new File(rootfsDirFile, "/bin/bash").exists()) shell = "/bin/bash";
+                else if (new File(rootfsDirFile, "/usr/bin/bash").exists()) shell = "/usr/bin/bash";
+            }
+
+            // Fallback to any available shell
+            if (shell == null) {
+                for (String s : commonShells) {
+                    if (new File(rootfsDirFile, s).exists()) {
+                        shell = s;
+                        break;
+                    }
                 }
             }
 
-            // Use shell wrapper to set guest environment because -e is not supported by all proot builds
-            // and host environment inheritance can be flaky.
-            prootArgs.add("/bin/sh");
+            // If still null, check if rootfs is nested (some archives have a top-level dir)
+            if (shell == null) {
+                File[] subdirs = rootfsDirFile.listFiles(File::isDirectory);
+                if (subdirs != null) {
+                    for (File subdir : subdirs) {
+                        for (String s : commonShells) {
+                            if (new File(subdir, s).exists()) {
+                                // Found it nested. We should probably adjust the root,
+                                // but for now let's just use the absolute guest path.
+                                shell = "/" + subdir.getName() + s;
+                                Logger.logWarn(LOG_TAG, "Found shell in nested directory: " + shell);
+                                break;
+                            }
+                        }
+                        if (shell != null) break;
+                    }
+                }
+            }
+
+            if (shell == null) {
+                shell = "/bin/sh"; // Desperate fallback
+                Logger.logError(LOG_TAG, "No shell found in rootfs, defaulting to /bin/sh");
+            }
+
+            // Use the detected shell as the guest executable for the wrapper
+            prootArgs.add(shell);
             prootArgs.add("-c");
+
+            // Build guest environment setup
             String guestCommand = "export HOME=/root; " +
                                   "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; " +
+                                  "export USER=root; " +
                                   "export TERM=xterm-256color; " +
                                   "export TMPDIR=/tmp; " +
+                                  "export LANG=en_US.UTF-8; " +
+                                  "cd /root; " +
                                   "exec " + shell + " -l";
             prootArgs.add(guestCommand);
 
             return prootArgs.toArray(new String[0]);
         }
 
-        // The file to execute may either be:
-        // - An elf file, in which we execute it directly.
-        // - A script file without shebang, which we execute with our standard shell $PREFIX/bin/sh instead of the
-        //   system /system/bin/sh. The system shell may vary and may not work at all due to LD_LIBRARY_PATH.
-        // - A file with shebang, which we try to handle with e.g. /bin/foo -> $PREFIX/bin/foo.
+        // Standard Termux execution logic (no rootfs)
         String interpreter = null;
         try {
             File file = new File(executable);
@@ -148,11 +180,6 @@ public class TermuxShellUtils {
 
     /** Clear files under {@link TermuxConstants#TERMUX_TMP_PREFIX_DIR_PATH}. */
     public static void clearTermuxTMPDIR(boolean onlyIfExists) {
-        // Existence check before clearing may be required since clearDirectory() will automatically
-        // re-create empty directory if doesn't exist, which should not be done for things like
-        // termux-reset (d6eb5e35). Moreover, TMPDIR must be a directory and not a symlink, this can
-        // also allow users who don't want TMPDIR to be cleared automatically on termux exit, since
-        // it may remove files still being used by background processes (#1159).
         if(onlyIfExists && !FileUtils.directoryFileExists(TermuxConstants.TERMUX_TMP_PREFIX_DIR_PATH, false))
             return;
 
