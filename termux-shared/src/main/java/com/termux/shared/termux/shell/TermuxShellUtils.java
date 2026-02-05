@@ -36,7 +36,8 @@ public class TermuxShellUtils {
         if (preferences != null && preferences.isRootfsInstalled()) {
             List<String> prootArgs = new ArrayList<>();
             String filesDir = currentPackageContext.getFilesDir().getAbsolutePath();
-            prootArgs.add(filesDir + "/bin/proot");
+            String prootPath = currentPackageContext.getApplicationInfo().nativeLibraryDir + "/libproot.so";
+            prootArgs.add(prootPath);
             prootArgs.add("-r");
             prootArgs.add(filesDir + "/rootfs");
             prootArgs.add("-0");

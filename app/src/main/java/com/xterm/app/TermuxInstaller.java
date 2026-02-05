@@ -66,7 +66,7 @@ import static com.termux.shared.termux.TermuxConstants.TERMUX_STAGING_PREFIX_DIR
  * <p/>
  * (5.2) For every other zip entry, extract it into $STAGING_PREFIX and set execute permissions if necessary.
  */
-final class TermuxInstaller {
+public final class TermuxInstaller {
 
     private static final String LOG_TAG = "TermuxInstaller";
 
@@ -106,8 +106,8 @@ final class TermuxInstaller {
                     File rootfsDir = new File(filesDir, "rootfs");
                     FileUtils.clearDirectory("rootfs", rootfsDir.getAbsolutePath());
 
-                    // 2. Install "needed assets" (proot)
-                    installNeededAssets(activity);
+                    // 2. Install Termux bootstrap
+                    installTermuxBootstrap(activity);
 
                     // 3. Install Rootfs bundle
                     String url = preferences.getRootfsBundleUrl();
@@ -137,26 +137,11 @@ final class TermuxInstaller {
         }.start();
     }
 
-    private static void installNeededAssets(Context context) throws Exception {
+    private static void installTermuxBootstrap(Context context) throws Exception {
         String arch = getArch();
-        File binDir = new File(context.getFilesDir(), "bin");
-        if (!binDir.exists()) binDir.mkdirs();
-
-        File prootFile = new File(binDir, "proot");
-        Logger.logInfo(LOG_TAG, "Installing bundled proot for " + arch);
-        try (java.io.InputStream in = context.getAssets().open("bin/proot-" + arch);
-             java.io.FileOutputStream out = new java.io.FileOutputStream(prootFile)) {
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-            }
-        }
-        Os.chmod(prootFile.getAbsolutePath(), 0700);
-
-        // Also ensure Termux bootstrap is available as base
+        // Ensure Termux bootstrap is available as base
         File usrDir = new File(context.getFilesDir(), "usr");
-        if (!usrDir.exists() || FileUtils.isTermuxPrefixDirectoryEmpty()) {
+        if (!usrDir.exists() || TermuxFileUtils.isTermuxPrefixDirectoryEmpty()) {
             Logger.logInfo(LOG_TAG, "Installing bundled Termux bootstrap");
             try (java.io.InputStream in = context.getAssets().open("bootstraps/bootstrap-" + arch + ".zip")) {
                 extractZip(in, usrDir);
@@ -472,7 +457,6 @@ final class TermuxInstaller {
             }
         }.start();
         */
-    }
 
     public static void showBootstrapErrorDialog(Activity activity, Runnable whenDone, String message) {
         Logger.logErrorExtended(LOG_TAG, "Bootstrap Error:\n" + message);
