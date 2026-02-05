@@ -56,11 +56,11 @@ public class TermuxApplication extends Application {
             Logger.logInfo(LOG_TAG, "Termux files directory is accessible");
 
             // Ensure essential directories exist using assigned paths
-            File filesDir = getFilesDir();
+            java.io.File filesDir = getFilesDir();
             if (filesDir != null) {
-                new File(filesDir, "home").mkdirs();
-                new File(filesDir, "usr").mkdirs();
-                new File(filesDir, "tmp").mkdirs();
+                new java.io.File(filesDir, "home").mkdirs();
+                new java.io.File(filesDir, "usr").mkdirs();
+                new java.io.File(filesDir, "tmp").mkdirs();
             }
 
             error = TermuxFileUtils.isAppsTermuxAppDirectoryAccessible(true, true);
