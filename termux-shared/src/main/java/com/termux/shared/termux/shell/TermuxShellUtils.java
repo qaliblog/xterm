@@ -41,7 +41,7 @@ public class TermuxShellUtils {
             prootArgs.add(filesDir + "/rootfs");
             prootArgs.add("-0");
             prootArgs.add("-w");
-            prootArgs.add("/root");
+            prootArgs.add("/");
             prootArgs.add("-b");
             prootArgs.add("/dev");
             prootArgs.add("-b");
@@ -50,6 +50,12 @@ public class TermuxShellUtils {
             prootArgs.add("/sys");
             prootArgs.add("-b");
             prootArgs.add("/sdcard");
+            prootArgs.add("-b");
+            prootArgs.add(filesDir + "/tmp:/tmp");
+
+            // Fix for hardcoded com.termux paths in some proot builds
+            prootArgs.add("-b");
+            prootArgs.add(TermuxConstants.TERMUX_INTERNAL_PRIVATE_APP_DATA_DIR_PATH + ":/data/data/com.termux");
 
             String osType = preferences.getRootfsOsType();
             String shell = "/bin/sh";
@@ -60,8 +66,16 @@ public class TermuxShellUtils {
             // Check if preferred shell exists in rootfs, fallback to /bin/sh
             File rootfsDirFile = new File(filesDir + "/rootfs");
             if (!new File(rootfsDirFile, shell).exists()) {
-                shell = "/bin/sh";
+                if (new File(rootfsDirFile, "/usr" + shell).exists()) {
+                    shell = "/usr" + shell;
+                } else if (new File(rootfsDirFile, "/bin/sh").exists()) {
+                    shell = "/bin/sh";
+                }
             }
+
+            // Explicitly set PATH for the guest
+            prootArgs.add("-e");
+            prootArgs.add("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
 
             prootArgs.add(shell);
             prootArgs.add("-l"); // login shell

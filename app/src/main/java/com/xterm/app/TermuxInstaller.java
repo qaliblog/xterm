@@ -106,6 +106,9 @@ public final class TermuxInstaller {
                     File rootfsDir = new File(filesDir, "rootfs");
                     FileUtils.clearDirectory("rootfs", rootfsDir.getAbsolutePath());
 
+                    File tmpDir = new File(filesDir, "tmp");
+                    FileUtils.clearDirectory("tmp", tmpDir.getAbsolutePath());
+
                     // 2. Install "needed assets" (proot)
                     installNeededAssets(activity);
 
