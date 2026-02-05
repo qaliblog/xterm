@@ -7,6 +7,7 @@ import com.termux.shared.logger.Logger;
 import com.termux.shared.termux.crash.TermuxCrashUtils;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.shared.termux.settings.properties.TermuxAppSharedProperties;
+import com.termux.shared.termux.shell.TermuxShellManager;
 import com.termux.shared.termux.theme.TermuxThemeUtils;
 
 import java.io.File;
@@ -33,6 +34,9 @@ public class TermuxApplication extends Application {
 
         // Load Termux app SharedProperties from disk
         TermuxAppSharedProperties.init(context);
+
+        // Initialize Termux shell manager
+        TermuxShellManager.init(context);
 
         // Ensure essential directories exist
         File filesDir = context.getFilesDir();
