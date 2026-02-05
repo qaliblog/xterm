@@ -5,7 +5,7 @@ import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentPagerAdapter;
-import com.xterm.app.R;
+import com.xterm.R;
 
 /**
  * Adapter for terminal tab only (simple terminal, no OS/VNC).

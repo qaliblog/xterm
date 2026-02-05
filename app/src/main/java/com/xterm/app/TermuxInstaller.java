@@ -13,7 +13,7 @@ import android.util.Pair;
 import android.view.WindowManager;
 
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
-import com.xterm.app.R;
+import com.xterm.R;
 import com.termux.shared.file.FileUtils;
 import com.termux.shared.termux.crash.TermuxCrashUtils;
 import com.termux.shared.termux.file.TermuxFileUtils;

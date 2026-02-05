@@ -18,7 +18,7 @@ import android.os.PowerManager;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.xterm.app.R;
+import com.xterm.R;
 import com.xterm.app.event.SystemEventReceiver;
 import com.xterm.app.terminal.TermuxTerminalSessionActivityClient;
 import com.xterm.app.terminal.TermuxTerminalSessionServiceClient;
