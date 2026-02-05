@@ -80,37 +80,29 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences preferences = com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences.build(currentPackageContext);
         boolean isRootfsInstalled = preferences != null && preferences.isRootfsInstalled();
 
-        if (isRootfsInstalled) {
-            // Setup environment for proot guest (propagated from host)
-            environment.put(ENV_HOME, "/root");
-            environment.put(ENV_TMPDIR, "/tmp");
-            environment.put(ENV_PATH, "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
-            environment.put("PROOT_TMP_DIR", filesDir + "/tmp");
-        } else {
-            environment.put(ENV_HOME, filesDir + "/home");
-            environment.put(ENV_PREFIX, filesDir + "/usr");
+        // Always set host-side environment variables properly to valid host directories
+        environment.put(ENV_HOME, filesDir + "/home");
+        environment.put(ENV_PREFIX, filesDir + "/usr");
+        environment.put(ENV_TMPDIR, filesDir + "/tmp");
 
-            // If failsafe is not enabled, then we keep default PATH and TMPDIR so that system binaries can be used
-            if (!isFailSafe) {
-                environment.put(ENV_TMPDIR, filesDir + "/usr/tmp");
-                if (TermuxBootstrap.isAppPackageVariantAPTAndroid5()) {
-                    // Termux in android 5/6 era shipped busybox binaries in applets directory
-                    environment.put(ENV_PATH, filesDir + "/usr/bin:" + filesDir + "/usr/bin/applets");
-                    environment.put(ENV_LD_LIBRARY_PATH, filesDir + "/usr/lib");
-                } else {
-                    // Termux binaries on Android 7+ rely on DT_RUNPATH, so LD_LIBRARY_PATH should be unset by default
-                    environment.put(ENV_PATH, filesDir + "/usr/bin");
-                    environment.remove(ENV_LD_LIBRARY_PATH);
-                }
-            }
+        // Ensure host PATH includes app's bin directory for proot
+        String appBinDir = filesDir + "/bin";
+        String currentPath = environment.get(ENV_PATH);
+        if (currentPath == null) {
+            environment.put(ENV_PATH, appBinDir + ":/system/bin:/system/xbin");
+        } else if (!currentPath.contains(appBinDir)) {
+            environment.put(ENV_PATH, appBinDir + ":" + currentPath);
+        }
+
+        if (isRootfsInstalled) {
+            environment.put("PROOT_TMP_DIR", filesDir + "/tmp");
         }
 
         // Always add app bin dir to LD_LIBRARY_PATH to support proot and its libraries
-        String appBinDir = filesDir + "/bin";
         String currentLdLibraryPath = environment.get(ENV_LD_LIBRARY_PATH);
         if (currentLdLibraryPath == null) {
             environment.put(ENV_LD_LIBRARY_PATH, appBinDir);
-        } else {
+        } else if (!currentLdLibraryPath.contains(appBinDir)) {
             environment.put(ENV_LD_LIBRARY_PATH, appBinDir + ":" + currentLdLibraryPath);
         }
 

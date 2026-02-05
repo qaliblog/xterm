@@ -36,12 +36,14 @@ public class TermuxShellUtils {
         if (preferences != null && preferences.isRootfsInstalled()) {
             List<String> prootArgs = new ArrayList<>();
             String filesDir = currentPackageContext.getFilesDir().getAbsolutePath();
+            File rootfsDirFile = new File(filesDir + "/rootfs");
+
             prootArgs.add(filesDir + "/bin/proot");
             prootArgs.add("-r");
-            prootArgs.add(filesDir + "/rootfs");
+            prootArgs.add(rootfsDirFile.getAbsolutePath());
             prootArgs.add("-0");
             prootArgs.add("-w");
-            prootArgs.add("/");
+            prootArgs.add("/root");
             prootArgs.add("-b");
             prootArgs.add("/dev");
             prootArgs.add("-b");
@@ -52,29 +54,41 @@ public class TermuxShellUtils {
             prootArgs.add("/sdcard");
             prootArgs.add("-b");
             prootArgs.add(filesDir + "/tmp:/tmp");
+            prootArgs.add("-b");
+            prootArgs.add(filesDir + "/home:/root");
 
             // Fix for hardcoded com.termux paths in some proot builds
             prootArgs.add("-b");
-            prootArgs.add(TermuxConstants.TERMUX_INTERNAL_PRIVATE_APP_DATA_DIR_PATH + ":/data/data/com.termux");
+            prootArgs.add(filesDir + ":/data/data/com.termux/files");
 
             String osType = preferences.getRootfsOsType();
+
+            // Detect shells inside rootfs
             String shell = "/bin/sh";
             if ("ubuntu".equals(osType) || "debian".equals(osType) || "kali".equals(osType) || "arch".equals(osType)) {
-                shell = "/bin/bash";
-            }
-
-            // Check if preferred shell exists in rootfs, fallback to /bin/sh
-            File rootfsDirFile = new File(filesDir + "/rootfs");
-            if (!new File(rootfsDirFile, shell).exists()) {
-                if (new File(rootfsDirFile, "/usr" + shell).exists()) {
-                    shell = "/usr" + shell;
-                } else if (new File(rootfsDirFile, "/bin/sh").exists()) {
+                if (new File(rootfsDirFile, "/bin/bash").exists()) {
+                    shell = "/bin/bash";
+                } else if (new File(rootfsDirFile, "/usr/bin/bash").exists()) {
+                    shell = "/usr/bin/bash";
+                }
+            } else {
+                if (new File(rootfsDirFile, "/bin/sh").exists()) {
                     shell = "/bin/sh";
+                } else if (new File(rootfsDirFile, "/usr/bin/sh").exists()) {
+                    shell = "/usr/bin/sh";
                 }
             }
 
-            prootArgs.add(shell);
-            prootArgs.add("-l"); // login shell
+            // Use shell wrapper to set guest environment because -e is not supported by all proot builds
+            // and host environment inheritance can be flaky.
+            prootArgs.add("/bin/sh");
+            prootArgs.add("-c");
+            String guestCommand = "export HOME=/root; " +
+                                  "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; " +
+                                  "export TERM=xterm-256color; " +
+                                  "export TMPDIR=/tmp; " +
+                                  "exec " + shell + " -l";
+            prootArgs.add(guestCommand);
 
             return prootArgs.toArray(new String[0]);
         }
