@@ -106,8 +106,8 @@ public final class TermuxInstaller {
                     File rootfsDir = new File(filesDir, "rootfs");
                     FileUtils.clearDirectory("rootfs", rootfsDir.getAbsolutePath());
 
-                    // 2. Install "needed assets" (proot)
-                    installNeededAssets(activity);
+                    // 2. Install Termux bootstrap
+                    installTermuxBootstrap(activity);
 
                     // 3. Install Rootfs bundle
                     String url = preferences.getRootfsBundleUrl();
@@ -137,24 +137,9 @@ public final class TermuxInstaller {
         }.start();
     }
 
-    private static void installNeededAssets(Context context) throws Exception {
+    private static void installTermuxBootstrap(Context context) throws Exception {
         String arch = getArch();
-        File binDir = new File(context.getFilesDir(), "bin");
-        if (!binDir.exists()) binDir.mkdirs();
-
-        File prootFile = new File(binDir, "proot");
-        Logger.logInfo(LOG_TAG, "Installing bundled proot for " + arch);
-        try (java.io.InputStream in = context.getAssets().open("bin/proot-" + arch);
-             java.io.FileOutputStream out = new java.io.FileOutputStream(prootFile)) {
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-            }
-        }
-        Os.chmod(prootFile.getAbsolutePath(), 0700);
-
-        // Also ensure Termux bootstrap is available as base
+        // Ensure Termux bootstrap is available as base
         File usrDir = new File(context.getFilesDir(), "usr");
         if (!usrDir.exists() || TermuxFileUtils.isTermuxPrefixDirectoryEmpty()) {
             Logger.logInfo(LOG_TAG, "Installing bundled Termux bootstrap");
