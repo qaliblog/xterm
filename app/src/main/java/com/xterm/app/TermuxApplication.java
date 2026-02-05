@@ -26,7 +26,7 @@ public class TermuxApplication extends Application {
         }
 
         // Setup crash handler
-        TermuxCrashUtils.setupCrashHandler(context);
+        TermuxCrashUtils.setDefaultCrashHandler(context);
 
         // Set night mode
         TermuxThemeUtils.setAppNightMode(context);
