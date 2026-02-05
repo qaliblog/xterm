@@ -4,9 +4,12 @@ import android.app.Application;
 import android.content.Context;
 
 import com.termux.shared.logger.Logger;
-import com.termux.shared.termux.TermuxConstants;
+import com.termux.shared.termux.crash.TermuxCrashUtils;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
-import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants;
+import com.termux.shared.termux.settings.properties.TermuxAppSharedProperties;
+import com.termux.shared.termux.theme.TermuxThemeUtils;
+
+import java.io.File;
 
 public class TermuxApplication extends Application {
     @Override
@@ -14,20 +17,29 @@ public class TermuxApplication extends Application {
         super.onCreate();
 
         Context context = getApplicationContext();
+
+        // Load termux shared preferences
         TermuxAppSharedPreferences preferences = TermuxAppSharedPreferences.build(context, true);
-        if (preferences == null) {
-            return;
+        if (preferences != null) {
+            // Set log level
+            Logger.setLogLevel(context, preferences.getLogLevel());
         }
 
-        // Set log level
-        Logger.setLogLevel(context, preferences.getLogLevel());
+        // Setup crash handler
+        TermuxCrashUtils.setupCrashHandler(context);
+
+        // Set night mode
+        TermuxThemeUtils.setAppNightMode(context);
+
+        // Load Termux app SharedProperties from disk
+        TermuxAppSharedProperties.init(context);
 
         // Ensure essential directories exist
-        java.io.File filesDir = context.getFilesDir();
+        File filesDir = context.getFilesDir();
         if (filesDir != null) {
-            new java.io.File(filesDir, "home").mkdirs();
-            new java.io.File(filesDir, "usr").mkdirs();
-            new java.io.File(filesDir, "tmp").mkdirs();
+            new File(filesDir, "home").mkdirs();
+            new File(filesDir, "usr").mkdirs();
+            new File(filesDir, "tmp").mkdirs();
         }
     }
 }
