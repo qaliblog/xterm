@@ -75,32 +75,38 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         if (termuxApiAppEnvironment != null)
             environment.putAll(termuxApiAppEnvironment);
 
-        environment.put(ENV_HOME, TermuxConstants.TERMUX_HOME_DIR_PATH);
-        environment.put(ENV_PREFIX, TermuxConstants.TERMUX_PREFIX_DIR_PATH);
-
-        // If failsafe is not enabled, then we keep default PATH and TMPDIR so that system binaries can be used
-        if (!isFailSafe) {
-            environment.put(ENV_TMPDIR, TermuxConstants.TERMUX_TMP_PREFIX_DIR_PATH);
-            if (TermuxBootstrap.isAppPackageVariantAPTAndroid5()) {
-                // Termux in android 5/6 era shipped busybox binaries in applets directory
-                environment.put(ENV_PATH, TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH + ":" + TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH + "/applets");
-                environment.put(ENV_LD_LIBRARY_PATH, TermuxConstants.TERMUX_LIB_PREFIX_DIR_PATH);
-            } else {
-                // Termux binaries on Android 7+ rely on DT_RUNPATH, so LD_LIBRARY_PATH should be unset by default
-                environment.put(ENV_PATH, TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH);
-                environment.remove(ENV_LD_LIBRARY_PATH);
-            }
-        }
+        String filesDir = currentPackageContext.getFilesDir().getAbsolutePath();
 
         com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences preferences = com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences.build(currentPackageContext);
         boolean isRootfsInstalled = preferences != null && preferences.isRootfsInstalled();
 
         if (isRootfsInstalled) {
-            environment.put("PROOT_TMP_DIR", TermuxConstants.TERMUX_FILES_DIR_PATH + "/tmp");
+            // Setup environment for proot guest (propagated from host)
+            environment.put(ENV_HOME, "/root");
+            environment.put(ENV_TMPDIR, "/tmp");
+            environment.put(ENV_PATH, "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
+            environment.put("PROOT_TMP_DIR", filesDir + "/tmp");
+        } else {
+            environment.put(ENV_HOME, filesDir + "/home");
+            environment.put(ENV_PREFIX, filesDir + "/usr");
+
+            // If failsafe is not enabled, then we keep default PATH and TMPDIR so that system binaries can be used
+            if (!isFailSafe) {
+                environment.put(ENV_TMPDIR, filesDir + "/usr/tmp");
+                if (TermuxBootstrap.isAppPackageVariantAPTAndroid5()) {
+                    // Termux in android 5/6 era shipped busybox binaries in applets directory
+                    environment.put(ENV_PATH, filesDir + "/usr/bin:" + filesDir + "/usr/bin/applets");
+                    environment.put(ENV_LD_LIBRARY_PATH, filesDir + "/usr/lib");
+                } else {
+                    // Termux binaries on Android 7+ rely on DT_RUNPATH, so LD_LIBRARY_PATH should be unset by default
+                    environment.put(ENV_PATH, filesDir + "/usr/bin");
+                    environment.remove(ENV_LD_LIBRARY_PATH);
+                }
+            }
         }
 
         // Always add app bin dir to LD_LIBRARY_PATH to support proot and its libraries
-        String appBinDir = TermuxConstants.TERMUX_FILES_DIR_PATH + "/bin";
+        String appBinDir = filesDir + "/bin";
         String currentLdLibraryPath = environment.get(ENV_LD_LIBRARY_PATH);
         if (currentLdLibraryPath == null) {
             environment.put(ENV_LD_LIBRARY_PATH, appBinDir);
@@ -115,9 +121,8 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
     @NonNull
     @Override
     public String getDefaultWorkingDirectoryPath() {
-        // Return files directory path instead of home to ensure it exists,
-        // especially when home might not have been created yet or when using rootfs.
-        return TermuxConstants.TERMUX_FILES_DIR_PATH;
+        // Return / as safe host-side CWD. Proot handles its own guest CWD with -w.
+        return "/";
     }
 
     @NonNull

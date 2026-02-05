@@ -73,24 +73,6 @@ public class TermuxShellUtils {
                 }
             }
 
-            // Use 'env' to set guest environment variables since '-e' is not supported by this proot
-            String envPath = "/usr/bin/env";
-            if (!new File(rootfsDirFile, envPath).exists()) {
-                if (new File(rootfsDirFile, "/bin/env").exists()) {
-                    envPath = "/bin/env";
-                } else {
-                    envPath = null; // Fallback: don't use env
-                }
-            }
-
-            if (envPath != null) {
-                prootArgs.add(envPath);
-                prootArgs.add("HOME=/root");
-                prootArgs.add("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
-                prootArgs.add("TERM=xterm-256color");
-                prootArgs.add("TMPDIR=/tmp");
-            }
-
             prootArgs.add(shell);
             prootArgs.add("-l"); // login shell
 

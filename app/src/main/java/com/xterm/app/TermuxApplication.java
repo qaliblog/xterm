@@ -53,6 +53,14 @@ public class TermuxApplication extends Application {
         if (isTermuxFilesDirectoryAccessible) {
             Logger.logInfo(LOG_TAG, "Termux files directory is accessible");
 
+            // Ensure essential directories exist using assigned paths
+            File filesDir = getFilesDir();
+            if (filesDir != null) {
+                new File(filesDir, "home").mkdirs();
+                new File(filesDir, "usr").mkdirs();
+                new File(filesDir, "tmp").mkdirs();
+            }
+
             error = TermuxFileUtils.isAppsTermuxAppDirectoryAccessible(true, true);
             if (error != null) {
                 Logger.logErrorExtended(LOG_TAG, "Create apps/termux-app directory failed\n" + error);
