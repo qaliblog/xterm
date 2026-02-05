@@ -90,6 +90,15 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
                 environment.put(ENV_PATH, TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH);
                 environment.remove(ENV_LD_LIBRARY_PATH);
             }
+
+            // Add app bin dir to LD_LIBRARY_PATH to support proot and its libraries
+            String appBinDir = currentPackageContext.getFilesDir().getAbsolutePath() + "/bin";
+            String currentLdLibraryPath = environment.get(ENV_LD_LIBRARY_PATH);
+            if (currentLdLibraryPath == null) {
+                environment.put(ENV_LD_LIBRARY_PATH, appBinDir);
+            } else {
+                environment.put(ENV_LD_LIBRARY_PATH, appBinDir + ":" + currentLdLibraryPath);
+            }
         }
 
         return environment;

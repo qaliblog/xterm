@@ -142,17 +142,23 @@ public final class TermuxInstaller {
         File binDir = new File(context.getFilesDir(), "bin");
         if (!binDir.exists()) binDir.mkdirs();
 
-        File prootFile = new File(binDir, "proot");
-        Logger.logInfo(LOG_TAG, "Installing bundled proot for " + arch);
-        try (java.io.InputStream in = context.getAssets().open("bin/proot-" + arch);
-             java.io.FileOutputStream out = new java.io.FileOutputStream(prootFile)) {
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
+        Logger.logInfo(LOG_TAG, "Installing bundled proot assets for " + arch);
+        String assetPath = "bin/" + arch;
+        String[] assets = context.getAssets().list(assetPath);
+        if (assets != null) {
+            for (String asset : assets) {
+                File outFile = new File(binDir, asset);
+                try (java.io.InputStream in = context.getAssets().open(assetPath + "/" + asset);
+                     java.io.FileOutputStream out = new java.io.FileOutputStream(outFile)) {
+                    byte[] buffer = new byte[8192];
+                    int read;
+                    while ((read = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, read);
+                    }
+                }
+                Os.chmod(outFile.getAbsolutePath(), 0700);
             }
         }
-        Os.chmod(prootFile.getAbsolutePath(), 0700);
 
         // Also ensure Termux bootstrap is available as base
         File usrDir = new File(context.getFilesDir(), "usr");

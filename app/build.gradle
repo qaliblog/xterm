@@ -288,12 +288,10 @@ def downloadProot(String arch, String expectedChecksum, String remoteUrl) {
     def localZip = "src/main/assets/bin/proot-" + arch + ".zip"
     downloadAsset(remoteUrl, localZip, expectedChecksum)
 
-    // Extract proot from zip
+    // Extract all files from zip into an arch-specific directory
     copy {
         from zipTree(new File(projectDir, localZip))
-        into new File(projectDir, "src/main/assets/bin")
-        include "proot"
-        rename "proot", "proot-" + arch
+        into new File(projectDir, "src/main/assets/bin/" + arch)
     }
     new File(projectDir, localZip).delete()
 }
