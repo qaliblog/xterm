@@ -42,6 +42,7 @@ public class TermuxShellUtils {
             prootArgs.add("-r");
             prootArgs.add(rootfsDirFile.getAbsolutePath());
             prootArgs.add("-0");
+            prootArgs.add("-p"); // link2symlink - often needed on Android
             prootArgs.add("-w");
             prootArgs.add("/root");
             prootArgs.add("-b");
@@ -52,6 +53,8 @@ public class TermuxShellUtils {
             prootArgs.add("/sys");
             prootArgs.add("-b");
             prootArgs.add("/sdcard");
+            prootArgs.add("-b");
+            prootArgs.add("/dev/urandom:/dev/random");
             prootArgs.add("-b");
             prootArgs.add(filesDir + "/tmp:/tmp");
             prootArgs.add("-b");
