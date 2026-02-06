@@ -110,7 +110,7 @@
             android:name=".app.activities.SetupActivity"
             android:exported="false"
             android:label="Rootfs Setup"
-            android:theme="@style/Theme.TermuxApp.DayNight.DarkActionBar" />
+            android:theme="@style/Theme.TermuxApp.DayNight.NoActionBar" />
 
         <activity
             android:name="com.termux.shared.activities.ReportActivity"

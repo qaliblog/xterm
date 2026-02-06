@@ -43,6 +43,8 @@ public class TermuxShellUtils {
             prootArgs.add(rootfsDirFile.getAbsolutePath());
             prootArgs.add("-0");
             prootArgs.add("-p"); // link2symlink
+            prootArgs.add("-k");
+            prootArgs.add("5.4.0");
             prootArgs.add("-w");
             prootArgs.add("/root");
             prootArgs.add("-b");
@@ -56,6 +58,10 @@ public class TermuxShellUtils {
             prootArgs.add("-b");
             prootArgs.add("/sys");
             prootArgs.add("-b");
+            prootArgs.add("/system");
+            prootArgs.add("-b");
+            prootArgs.add("/vendor");
+            prootArgs.add("-b");
             prootArgs.add("/sdcard");
             prootArgs.add("-b");
             prootArgs.add("/dev/urandom:/dev/random");
@@ -67,6 +73,14 @@ public class TermuxShellUtils {
             // Fix for hardcoded com.termux paths in some proot builds
             prootArgs.add("-b");
             prootArgs.add(filesDir + ":/data/data/com.termux/files");
+            prootArgs.add("-b");
+            prootArgs.add(filesDir + ":/data/data/com.xterm/files");
+
+            // Clear problematic environment variables for the guest
+            prootArgs.add("-e");
+            prootArgs.add("LD_LIBRARY_PATH=");
+            prootArgs.add("-e");
+            prootArgs.add("LD_PRELOAD=");
 
             String osType = preferences.getRootfsOsType();
 
@@ -95,21 +109,20 @@ public class TermuxShellUtils {
                 Logger.logError(LOG_TAG, "No shell found in rootfs, defaulting to /bin/sh");
             }
 
-            // Use the detected shell as the guest executable for the wrapper
-            prootArgs.add(shell);
+            // Use a simple exec wrapper to ensure environment is clean and HOME is set
+            prootArgs.add("/bin/sh");
             prootArgs.add("-c");
 
             // Build guest environment setup
-            String guestCommand = "export HOME=/root; " +
+            String guestCommand = "unset LD_PRELOAD LD_LIBRARY_PATH; " +
+                                  "export HOME=/root; " +
                                   "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; " +
                                   "export USER=root; " +
                                   "export TERM=xterm-256color; " +
                                   "export TMPDIR=/tmp; " +
                                   "export LANG=en_US.UTF-8; " +
-                                  "export LD_LIBRARY_PATH=; " +
-                                  "export LD_PRELOAD=; " +
                                   "cd /root; " +
-                                  "exec " + shell + " -l";
+                                  "if [ -x " + shell + " ]; then exec " + shell + " -l; else exec /bin/sh; fi";
             prootArgs.add(guestCommand);
 
             return prootArgs.toArray(new String[0]);

@@ -73,6 +73,10 @@ public final class TermuxInstaller {
                     if (!tmpDir.exists()) tmpDir.mkdirs();
                     try { Os.chmod(tmpDir.getAbsolutePath(), 0777); } catch (Exception e) {}
 
+                    File homeDir = new File(filesDir, "home");
+                    if (!homeDir.exists()) homeDir.mkdirs();
+                    try { Os.chmod(homeDir.getAbsolutePath(), 0700); } catch (Exception e) {}
+
                     installNeededAssets(activity);
 
                     String url = preferences.getRootfsBundleUrl();
@@ -253,7 +257,7 @@ public final class TermuxInstaller {
                     }
                     try {
                         String name = entry.getName();
-                        if (name.contains("bin/") || name.contains("sbin/") || name.endsWith(".so")) {
+                        if (name.contains("bin/") || name.contains("sbin/") || name.endsWith(".so") || name.contains("/ld-")) {
                             Os.chmod(file.getAbsolutePath(), 0755);
                         } else {
                             Os.chmod(file.getAbsolutePath(), 0644);
@@ -304,13 +308,17 @@ public final class TermuxInstaller {
                         }
                         try {
                             int mode = entry.getMode();
+                            String name = entry.getName();
                             if (mode != 0) {
                                 mode |= 0444; // ensure readable
                                 if (entry.isDirectory()) mode |= 0111; // ensure searchable
+                                // If it's a binary/library, ensure executable
+                                if (name.contains("bin/") || name.contains("sbin/") || name.endsWith(".so") || name.contains("/ld-")) {
+                                    mode |= 0111;
+                                }
                                 Os.chmod(file.getAbsolutePath(), mode);
                             } else {
-                                String name = entry.getName();
-                                if (name.contains("bin/") || name.contains("sbin/") || name.endsWith(".so")) {
+                                if (name.contains("bin/") || name.contains("sbin/") || name.endsWith(".so") || name.contains("/ld-")) {
                                     Os.chmod(file.getAbsolutePath(), 0755);
                                 } else {
                                     Os.chmod(file.getAbsolutePath(), 0644);
