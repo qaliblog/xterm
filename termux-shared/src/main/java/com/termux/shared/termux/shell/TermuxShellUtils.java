@@ -38,8 +38,6 @@ public class TermuxShellUtils {
             String filesDir = currentPackageContext.getFilesDir().getAbsolutePath();
             File rootfsDirFile = new File(filesDir + "/rootfs");
 
-            String linker = new File("/system/bin/linker64").exists() ? "/system/bin/linker64" : "/system/bin/linker";
-            prootArgs.add(linker);
             prootArgs.add(filesDir + "/bin/proot");
             prootArgs.add("-r");
             prootArgs.add(rootfsDirFile.getAbsolutePath());
@@ -47,7 +45,7 @@ public class TermuxShellUtils {
             prootArgs.add("-p"); // link2symlink
             prootArgs.add("-L");
             prootArgs.add("-w");
-            prootArgs.add("/root");
+            prootArgs.add("/");
             prootArgs.add("-b");
             prootArgs.add("/dev");
             prootArgs.add("-b");
@@ -72,6 +70,10 @@ public class TermuxShellUtils {
             if (new File("/storage").exists()) {
                 prootArgs.add("-b");
                 prootArgs.add("/storage");
+            }
+            if (new File("/data").exists()) {
+                prootArgs.add("-b");
+                prootArgs.add("/data");
             }
             prootArgs.add("-b");
             prootArgs.add("/dev/urandom:/dev/random");
@@ -115,20 +117,6 @@ public class TermuxShellUtils {
             if (shell == null) {
                 shell = "/bin/sh"; // Desperate fallback
                 Logger.logError(LOG_TAG, "No shell found in rootfs, defaulting to /bin/sh");
-            }
-
-            // Resolve symlinks to absolute path within rootfs to avoid execve issues
-            try {
-                File shellFile = new File(rootfsDirFile, shell);
-                if (shellFile.exists()) {
-                    String canonicalPath = shellFile.getCanonicalPath();
-                    if (canonicalPath.startsWith(rootfsDirFile.getAbsolutePath())) {
-                        shell = canonicalPath.substring(rootfsDirFile.getAbsolutePath().length());
-                        if (shell.isEmpty()) shell = "/";
-                    }
-                }
-            } catch (Exception e) {
-                Logger.logStackTraceWithMessage(LOG_TAG, "Failed to resolve shell symlink", e);
             }
 
             // Use the detected shell directly. Proot will handle basic setup.
