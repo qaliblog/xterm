@@ -46,8 +46,6 @@ public class TermuxShellUtils {
             prootArgs.add("-0");
             prootArgs.add("-p"); // link2symlink
             prootArgs.add("-L");
-            prootArgs.add("--kill-on-exit");
-            prootArgs.add("--sysvipc");
             prootArgs.add("-w");
             prootArgs.add("/root");
             prootArgs.add("-b");
