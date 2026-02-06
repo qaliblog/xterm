@@ -38,35 +38,53 @@ public class TermuxShellUtils {
             String filesDir = currentPackageContext.getFilesDir().getAbsolutePath();
             File rootfsDirFile = new File(filesDir + "/rootfs");
 
+            String linker = new File("/system/bin/linker64").exists() ? "/system/bin/linker64" : "/system/bin/linker";
+            prootArgs.add(linker);
             prootArgs.add(filesDir + "/bin/proot");
             prootArgs.add("-r");
             prootArgs.add(rootfsDirFile.getAbsolutePath());
             prootArgs.add("-0");
             prootArgs.add("-p"); // link2symlink
-            prootArgs.add("-k");
-            prootArgs.add("5.4.0");
+            prootArgs.add("-L");
+            prootArgs.add("--kill-on-exit");
+            prootArgs.add("--sysvipc");
             prootArgs.add("-w");
             prootArgs.add("/root");
             prootArgs.add("-b");
             prootArgs.add("/dev");
             prootArgs.add("-b");
-            prootArgs.add("/dev/pts");
-            prootArgs.add("-b");
             prootArgs.add("/proc");
             prootArgs.add("-b");
             prootArgs.add("/sys");
-            prootArgs.add("-b");
-            prootArgs.add("/system");
-            prootArgs.add("-b");
-            prootArgs.add("/vendor");
-            prootArgs.add("-b");
-            prootArgs.add("/sdcard");
+            String[] systemBinds = {
+                "/system", "/vendor", "/apex", "/odm", "/product", "/system_ext",
+                "/linkerconfig/ld.config.txt", "/linkerconfig/com.android.art/ld.config.txt",
+                "/plat_property_contexts", "/property_contexts"
+            };
+            for (String bind : systemBinds) {
+                if (new File(bind).exists()) {
+                    prootArgs.add("-b");
+                    prootArgs.add(bind);
+                }
+            }
+            if (new File("/sdcard").exists()) {
+                prootArgs.add("-b");
+                prootArgs.add("/sdcard");
+            }
+            if (new File("/storage").exists()) {
+                prootArgs.add("-b");
+                prootArgs.add("/storage");
+            }
             prootArgs.add("-b");
             prootArgs.add("/dev/urandom:/dev/random");
             prootArgs.add("-b");
             prootArgs.add(filesDir + "/tmp:/tmp");
             prootArgs.add("-b");
+            prootArgs.add(filesDir + "/tmp:/dev/shm");
+            prootArgs.add("-b");
             prootArgs.add(filesDir + "/home:/root");
+            prootArgs.add("-b");
+            prootArgs.add(filesDir);
 
             // Fix for hardcoded com.termux paths in some proot builds
             prootArgs.add("-b");
@@ -78,7 +96,7 @@ public class TermuxShellUtils {
 
             // Comprehensive shell detection
             String shell = null;
-            String[] commonShells = {"/bin/bash", "/usr/bin/bash", "/bin/sh", "/usr/bin/sh"};
+            String[] commonShells = {"/bin/sh", "/bin/bash", "/usr/bin/sh", "/usr/bin/bash"};
 
             // Try to find the preferred shell first
             if ("ubuntu".equals(osType) || "debian".equals(osType) || "kali".equals(osType) || "arch".equals(osType)) {
@@ -101,21 +119,25 @@ public class TermuxShellUtils {
                 Logger.logError(LOG_TAG, "No shell found in rootfs, defaulting to /bin/sh");
             }
 
-            // Use a simple exec wrapper to ensure environment is clean and HOME is set
-            prootArgs.add("/bin/sh");
-            prootArgs.add("-c");
+            // Resolve symlinks to absolute path within rootfs to avoid execve issues
+            try {
+                File shellFile = new File(rootfsDirFile, shell);
+                if (shellFile.exists()) {
+                    String canonicalPath = shellFile.getCanonicalPath();
+                    if (canonicalPath.startsWith(rootfsDirFile.getAbsolutePath())) {
+                        shell = canonicalPath.substring(rootfsDirFile.getAbsolutePath().length());
+                        if (shell.isEmpty()) shell = "/";
+                    }
+                }
+            } catch (Exception e) {
+                Logger.logStackTraceWithMessage(LOG_TAG, "Failed to resolve shell symlink", e);
+            }
 
-            // Build guest environment setup
-            String guestCommand = "unset LD_PRELOAD LD_LIBRARY_PATH; " +
-                                  "export HOME=/root; " +
-                                  "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; " +
-                                  "export USER=root; " +
-                                  "export TERM=xterm-256color; " +
-                                  "export TMPDIR=/tmp; " +
-                                  "export LANG=en_US.UTF-8; " +
-                                  "cd /root; " +
-                                  "if [ -x " + shell + " ]; then exec " + shell + " -l; else exec /bin/sh; fi";
-            prootArgs.add(guestCommand);
+            // Use the detected shell directly. Proot will handle basic setup.
+            prootArgs.add(shell);
+            if (shell.endsWith("sh")) {
+                prootArgs.add("-l");
+            }
 
             return prootArgs.toArray(new String[0]);
         }
