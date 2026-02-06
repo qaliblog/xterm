@@ -83,6 +83,9 @@ public final class TermuxInstaller {
                         installRemoteRootfs(url, rootfsDir);
                     }
 
+                    // Flatten nested rootfs if necessary (e.g. archive contains a single top-level directory)
+                    flattenRootfsIfNested(rootfsDir);
+
                     // Check if extraction produced any results
                     String[] contents = rootfsDir.list();
                     if (contents == null || contents.length == 0) {
@@ -106,6 +109,26 @@ public final class TermuxInstaller {
                 }
             }
         }.start();
+    }
+
+    private static void flattenRootfsIfNested(File rootfsDir) {
+        File[] items = rootfsDir.listFiles();
+        if (items != null && items.length == 1 && items[0].isDirectory()) {
+            File nestedDir = items[0];
+            Logger.logInfo(LOG_TAG, "Detected nested rootfs directory: " + nestedDir.getName() + ". Flattening...");
+            File[] contents = nestedDir.listFiles();
+            if (contents != null) {
+                for (File content : contents) {
+                    File target = new File(rootfsDir, content.getName());
+                    if (!content.renameTo(target)) {
+                        Logger.logWarn(LOG_TAG, "Failed to move " + content.getName() + " to " + target.getAbsolutePath());
+                    }
+                }
+            }
+            if (!nestedDir.delete()) {
+                Logger.logWarn(LOG_TAG, "Failed to delete empty nested directory: " + nestedDir.getAbsolutePath());
+            }
+        }
     }
 
     private static void installNeededAssets(Context context) throws Exception {
@@ -322,7 +345,6 @@ public final class TermuxInstaller {
                     }
                     File sharedDir = android.os.Environment.getExternalStorageDirectory();
                     Os.symlink(sharedDir.getAbsolutePath(), new File(storageDir, "shared").getAbsolutePath());
-                    // ... other symlinks ...
                 } catch (Exception e) {
                     Logger.logStackTraceWithMessage(LOG_TAG, "Setup Storage Error", e);
                 }

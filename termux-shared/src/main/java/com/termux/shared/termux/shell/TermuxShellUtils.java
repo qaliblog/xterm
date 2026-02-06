@@ -38,10 +38,6 @@ public class TermuxShellUtils {
             String filesDir = currentPackageContext.getFilesDir().getAbsolutePath();
             File rootfsDirFile = new File(filesDir + "/rootfs");
 
-            if (!rootfsDirFile.exists() || !rootfsDirFile.isDirectory()) {
-                Logger.logError(LOG_TAG, "Rootfs directory does not exist: " + rootfsDirFile.getAbsolutePath());
-            }
-
             prootArgs.add(filesDir + "/bin/proot");
             prootArgs.add("-r");
             prootArgs.add(rootfsDirFile.getAbsolutePath());
@@ -83,25 +79,6 @@ public class TermuxShellUtils {
                     if (new File(rootfsDirFile, s).exists()) {
                         shell = s;
                         break;
-                    }
-                }
-            }
-
-            // If still null, check if rootfs is nested (some archives have a top-level dir)
-            if (shell == null) {
-                File[] subdirs = rootfsDirFile.listFiles(File::isDirectory);
-                if (subdirs != null) {
-                    for (File subdir : subdirs) {
-                        for (String s : commonShells) {
-                            if (new File(subdir, s).exists()) {
-                                // Found it nested. We should probably adjust the root,
-                                // but for now let's just use the absolute guest path.
-                                shell = "/" + subdir.getName() + s;
-                                Logger.logWarn(LOG_TAG, "Found shell in nested directory: " + shell);
-                                break;
-                            }
-                        }
-                        if (shell != null) break;
                     }
                 }
             }
