@@ -42,7 +42,7 @@ public class TermuxShellUtils {
             prootArgs.add("-r");
             prootArgs.add(rootfsDirFile.getAbsolutePath());
             prootArgs.add("-0");
-            prootArgs.add("-p"); // link2symlink - often needed on Android
+            prootArgs.add("-p"); // link2symlink
             prootArgs.add("-w");
             prootArgs.add("/root");
             prootArgs.add("-b");
@@ -106,6 +106,8 @@ public class TermuxShellUtils {
                                   "export TERM=xterm-256color; " +
                                   "export TMPDIR=/tmp; " +
                                   "export LANG=en_US.UTF-8; " +
+                                  "export LD_LIBRARY_PATH=; " +
+                                  "export LD_PRELOAD=; " +
                                   "cd /root; " +
                                   "exec " + shell + " -l";
             prootArgs.add(guestCommand);

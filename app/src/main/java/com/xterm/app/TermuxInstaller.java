@@ -66,10 +66,12 @@ public final class TermuxInstaller {
                     Logger.logInfo(LOG_TAG, "Preparing rootfs directory at " + rootfsDir.getAbsolutePath());
                     FileUtils.clearDirectory("rootfs", rootfsDir.getAbsolutePath());
                     if (!rootfsDir.exists()) rootfsDir.mkdirs();
+                    try { Os.chmod(rootfsDir.getAbsolutePath(), 0755); } catch (Exception e) {}
 
                     File tmpDir = new File(filesDir, "tmp");
                     FileUtils.clearDirectory("tmp", tmpDir.getAbsolutePath());
                     if (!tmpDir.exists()) tmpDir.mkdirs();
+                    try { Os.chmod(tmpDir.getAbsolutePath(), 0777); } catch (Exception e) {}
 
                     installNeededAssets(activity);
 
@@ -135,6 +137,7 @@ public final class TermuxInstaller {
         String arch = getArch();
         File binDir = new File(context.getFilesDir(), "bin");
         if (!binDir.exists()) binDir.mkdirs();
+        try { Os.chmod(binDir.getAbsolutePath(), 0755); } catch (Exception e) {}
 
         Logger.logInfo(LOG_TAG, "Installing bundled proot assets for " + arch);
         String assetPath = "bin/" + arch;
@@ -150,7 +153,7 @@ public final class TermuxInstaller {
                         out.write(buffer, 0, read);
                     }
                 }
-                Os.chmod(outFile.getAbsolutePath(), 0700);
+                Os.chmod(outFile.getAbsolutePath(), 0755);
             }
         }
 
@@ -234,8 +237,13 @@ public final class TermuxInstaller {
                 File file = new File(destDir, entry.getName());
                 if (entry.isDirectory()) {
                     file.mkdirs();
+                    try { Os.chmod(file.getAbsolutePath(), 0755); } catch (Exception e) {}
                 } else {
-                    file.getParentFile().mkdirs();
+                    File parent = file.getParentFile();
+                    if (parent != null) {
+                        parent.mkdirs();
+                        try { Os.chmod(parent.getAbsolutePath(), 0755); } catch (Exception e) {}
+                    }
                     try (FileOutputStream out = new FileOutputStream(file)) {
                         byte[] buffer = new byte[8192];
                         int read;
@@ -243,9 +251,14 @@ public final class TermuxInstaller {
                             out.write(buffer, 0, read);
                         }
                     }
-                    if (entry.getName().contains("bin/")) {
-                        try { Os.chmod(file.getAbsolutePath(), 0700); } catch (Exception e) {}
-                    }
+                    try {
+                        String name = entry.getName();
+                        if (name.contains("bin/") || name.contains("sbin/") || name.endsWith(".so")) {
+                            Os.chmod(file.getAbsolutePath(), 0755);
+                        } else {
+                            Os.chmod(file.getAbsolutePath(), 0644);
+                        }
+                    } catch (Exception e) {}
                 }
                 count++;
                 if (count % 100 == 0) Logger.logVerbose(LOG_TAG, "Extracted " + count + " zip entries");
@@ -270,8 +283,13 @@ public final class TermuxInstaller {
                 File file = new File(destDir, entry.getName());
                 if (entry.isDirectory()) {
                     file.mkdirs();
+                    try { Os.chmod(file.getAbsolutePath(), 0755); } catch (Exception e) {}
                 } else {
-                    file.getParentFile().mkdirs();
+                    File parent = file.getParentFile();
+                    if (parent != null) {
+                        parent.mkdirs();
+                        try { Os.chmod(parent.getAbsolutePath(), 0755); } catch (Exception e) {}
+                    }
                     if (entry.isSymbolicLink()) {
                         try { Os.symlink(entry.getLinkName(), file.getAbsolutePath()); } catch (Exception e) {}
                     } else if (entry.isLink()) {
@@ -287,9 +305,16 @@ public final class TermuxInstaller {
                         try {
                             int mode = entry.getMode();
                             if (mode != 0) {
+                                mode |= 0444; // ensure readable
+                                if (entry.isDirectory()) mode |= 0111; // ensure searchable
                                 Os.chmod(file.getAbsolutePath(), mode);
-                            } else if (entry.getName().contains("bin/")) {
-                                Os.chmod(file.getAbsolutePath(), 0700);
+                            } else {
+                                String name = entry.getName();
+                                if (name.contains("bin/") || name.contains("sbin/") || name.endsWith(".so")) {
+                                    Os.chmod(file.getAbsolutePath(), 0755);
+                                } else {
+                                    Os.chmod(file.getAbsolutePath(), 0644);
+                                }
                             }
                         } catch (Exception e) {}
                     }

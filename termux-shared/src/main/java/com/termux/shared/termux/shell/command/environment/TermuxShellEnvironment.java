@@ -98,6 +98,7 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
             environment.put("PROOT_TMP_DIR", filesDir + "/tmp");
             environment.put("PROOT_NO_SECCOMP", "1");
             environment.put("PROOT_NO_HARDLINKS", "1");
+            environment.put("PROOT_FORCE_PTRACE_TRACEME", "1");
         }
 
         // Always add app bin dir to LD_LIBRARY_PATH to support proot and its libraries
