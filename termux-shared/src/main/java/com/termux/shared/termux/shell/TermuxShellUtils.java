@@ -52,6 +52,8 @@ public class TermuxShellUtils {
             prootArgs.add("/proc");
             prootArgs.add("-b");
             prootArgs.add("/sys");
+            prootArgs.add("-b");
+            prootArgs.add("/data");
             String[] systemBinds = {
                 "/system", "/vendor", "/apex", "/odm", "/product", "/system_ext",
                 "/linkerconfig/ld.config.txt", "/linkerconfig/com.android.art/ld.config.txt",
@@ -70,10 +72,6 @@ public class TermuxShellUtils {
             if (new File("/storage").exists()) {
                 prootArgs.add("-b");
                 prootArgs.add("/storage");
-            }
-            if (new File("/data").exists()) {
-                prootArgs.add("-b");
-                prootArgs.add("/data");
             }
             prootArgs.add("-b");
             prootArgs.add("/dev/urandom:/dev/random");
@@ -119,11 +117,23 @@ public class TermuxShellUtils {
                 Logger.logError(LOG_TAG, "No shell found in rootfs, defaulting to /bin/sh");
             }
 
-            // Use the detected shell directly. Proot will handle basic setup.
-            prootArgs.add(shell);
-            if (shell.endsWith("sh")) {
-                prootArgs.add("-l");
+            // Resolve symlinks to absolute path within rootfs to avoid execve issues
+            try {
+                File shellFile = new File(rootfsDirFile, shell);
+                if (shellFile.exists()) {
+                    String canonicalPath = shellFile.getCanonicalPath();
+                    if (canonicalPath.startsWith(rootfsDirFile.getAbsolutePath())) {
+                        shell = canonicalPath.substring(rootfsDirFile.getAbsolutePath().length());
+                        if (shell.isEmpty()) shell = "/";
+                    }
+                }
+            } catch (Exception e) {
+                Logger.logStackTraceWithMessage(LOG_TAG, "Failed to resolve shell symlink", e);
             }
+
+            // Use the guest shell directly.
+            prootArgs.add(shell);
+            prootArgs.add("-l");
 
             return prootArgs.toArray(new String[0]);
         }
