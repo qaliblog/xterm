@@ -48,6 +48,10 @@ public class TermuxShellUtils {
             prootArgs.add("-b");
             prootArgs.add("/dev");
             prootArgs.add("-b");
+            prootArgs.add("/dev/pts");
+            prootArgs.add("-b");
+            prootArgs.add("/dev/shm");
+            prootArgs.add("-b");
             prootArgs.add("/proc");
             prootArgs.add("-b");
             prootArgs.add("/sys");
