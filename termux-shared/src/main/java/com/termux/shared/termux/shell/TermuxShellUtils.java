@@ -52,8 +52,6 @@ public class TermuxShellUtils {
             prootArgs.add("-b");
             prootArgs.add("/dev/pts");
             prootArgs.add("-b");
-            prootArgs.add("/dev/shm");
-            prootArgs.add("-b");
             prootArgs.add("/proc");
             prootArgs.add("-b");
             prootArgs.add("/sys");
@@ -75,12 +73,6 @@ public class TermuxShellUtils {
             prootArgs.add(filesDir + ":/data/data/com.termux/files");
             prootArgs.add("-b");
             prootArgs.add(filesDir + ":/data/data/com.xterm/files");
-
-            // Clear problematic environment variables for the guest
-            prootArgs.add("-e");
-            prootArgs.add("LD_LIBRARY_PATH=");
-            prootArgs.add("-e");
-            prootArgs.add("LD_PRELOAD=");
 
             String osType = preferences.getRootfsOsType();
 
