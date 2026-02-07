@@ -38,6 +38,8 @@ public class TermuxShellUtils {
             String filesDir = currentPackageContext.getFilesDir().getAbsolutePath();
             File rootfsDirFile = new File(filesDir + "/rootfs");
 
+            String linker = new File("/system/bin/linker64").exists() ? "/system/bin/linker64" : "/system/bin/linker";
+            prootArgs.add(linker);
             prootArgs.add(filesDir + "/bin/proot");
             prootArgs.add("-r");
             prootArgs.add(rootfsDirFile.getAbsolutePath());
@@ -45,19 +47,14 @@ public class TermuxShellUtils {
             prootArgs.add("-p"); // link2symlink
             prootArgs.add("-L");
             prootArgs.add("-w");
-            prootArgs.add("/");
-            prootArgs.add("-b");
-            prootArgs.add("/dev");
-            prootArgs.add("-b");
-            prootArgs.add("/proc");
-            prootArgs.add("-b");
-            prootArgs.add("/sys");
-            prootArgs.add("-b");
-            prootArgs.add("/data");
+            prootArgs.add("/root");
+
+            // Comprehensive bind mounts for Android compatibility
             String[] systemBinds = {
                 "/system", "/vendor", "/apex", "/odm", "/product", "/system_ext",
                 "/linkerconfig/ld.config.txt", "/linkerconfig/com.android.art/ld.config.txt",
-                "/plat_property_contexts", "/property_contexts"
+                "/plat_property_contexts", "/property_contexts",
+                "/proc", "/sys", "/dev", "/sdcard", "/storage", "/data"
             };
             for (String bind : systemBinds) {
                 if (new File(bind).exists()) {
@@ -65,16 +62,28 @@ public class TermuxShellUtils {
                     prootArgs.add(bind);
                 }
             }
-            if (new File("/sdcard").exists()) {
+
+            // Standard file descriptor binds
+            if (new File("/proc/self/fd").exists()) {
                 prootArgs.add("-b");
-                prootArgs.add("/sdcard");
+                prootArgs.add("/proc/self/fd:/dev/fd");
             }
-            if (new File("/storage").exists()) {
+            if (new File("/proc/self/fd/0").exists()) {
                 prootArgs.add("-b");
-                prootArgs.add("/storage");
+                prootArgs.add("/proc/self/fd/0:/dev/stdin");
             }
+            if (new File("/proc/self/fd/1").exists()) {
+                prootArgs.add("-b");
+                prootArgs.add("/proc/self/fd/1:/dev/stdout");
+            }
+            if (new File("/proc/self/fd/2").exists()) {
+                prootArgs.add("-b");
+                prootArgs.add("/proc/self/fd/2:/dev/stderr");
+            }
+
             prootArgs.add("-b");
             prootArgs.add("/dev/urandom:/dev/random");
+
             prootArgs.add("-b");
             prootArgs.add(filesDir + "/tmp:/tmp");
             prootArgs.add("-b");
@@ -131,9 +140,19 @@ public class TermuxShellUtils {
                 Logger.logStackTraceWithMessage(LOG_TAG, "Failed to resolve shell symlink", e);
             }
 
-            // Use the guest shell directly.
-            prootArgs.add(shell);
-            prootArgs.add("-l");
+            // Use the host shell as a stable entry point to proot's guest
+            prootArgs.add("/system/bin/sh");
+            prootArgs.add("-c");
+
+            String guestCommand = "unset LD_PRELOAD LD_LIBRARY_PATH; " +
+                                  "export HOME=/root; " +
+                                  "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/system/bin; " +
+                                  "export TERM=xterm-256color; " +
+                                  "export USER=root; " +
+                                  "export TMPDIR=/tmp; " +
+                                  "cd /root; " +
+                                  "if [ -x " + shell + " ]; then exec " + shell + " -l; else exec /system/bin/sh; fi";
+            prootArgs.add(guestCommand);
 
             return prootArgs.toArray(new String[0]);
         }
