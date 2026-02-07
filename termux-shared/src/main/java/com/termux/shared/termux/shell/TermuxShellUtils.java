@@ -43,6 +43,8 @@ public class TermuxShellUtils {
             prootArgs.add(rootfsDirFile.getAbsolutePath());
             prootArgs.add("-0");
             prootArgs.add("-p"); // link2symlink
+            prootArgs.add("-w");
+            prootArgs.add("/root");
             // Comprehensive bind mounts for Android compatibility
             String[] systemBinds = {
                 "/system", "/vendor", "/apex", "/odm", "/product", "/system_ext",
@@ -101,6 +103,10 @@ public class TermuxShellUtils {
             String dataDir = currentPackageContext.getApplicationInfo().dataDir;
             prootArgs.add("-b");
             prootArgs.add(dataDir);
+
+            // Fix for hardcoded com.xterm paths used by the app or host
+            prootArgs.add("-b");
+            prootArgs.add(filesDir + ":/data/data/com.xterm/files");
 
             // Fix for hardcoded com.termux paths in some proot builds
             prootArgs.add("-b");

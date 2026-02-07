@@ -101,15 +101,6 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
 
         if (isRootfsInstalled) {
             environment.remove("LD_PRELOAD");
-
-            File loader = new File(filesDir + "/bin/libproot-loader.so");
-            if (loader.exists()) {
-                environment.put("PROOT_LOADER", loader.getAbsolutePath());
-            }
-            File loader32 = new File(filesDir + "/bin/libproot-loader32.so");
-            if (loader32.exists()) {
-                environment.put("PROOT_LOADER32", loader32.getAbsolutePath());
-            }
         }
 
         // Always add app bin dir to LD_LIBRARY_PATH to support proot and its libraries
