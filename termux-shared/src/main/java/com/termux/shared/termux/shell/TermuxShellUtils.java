@@ -43,20 +43,29 @@ public class TermuxShellUtils {
             prootArgs.add(rootfsDirFile.getAbsolutePath());
             prootArgs.add("-0");
             prootArgs.add("-p"); // link2symlink
-            prootArgs.add("-w");
-            prootArgs.add("/");
-
             // Comprehensive bind mounts for Android compatibility
             String[] systemBinds = {
                 "/system", "/vendor", "/apex", "/odm", "/product", "/system_ext",
-                "/linkerconfig",
                 "/plat_property_contexts", "/property_contexts",
-                "/proc", "/sys", "/dev", "/sdcard", "/storage", "/data"
+                "/proc", "/sys", "/dev", "/sdcard", "/storage"
             };
             for (String bind : systemBinds) {
                 if (new File(bind).exists()) {
                     prootArgs.add("-b");
                     prootArgs.add(bind);
+                }
+            }
+
+            // Bind specific linker config files if readable to avoid permission issues
+            String[] linkerConfigs = {
+                "/linkerconfig/ld.config.txt",
+                "/linkerconfig/com.android.art/ld.config.txt"
+            };
+            for (String config : linkerConfigs) {
+                File configFile = new File(config);
+                if (configFile.exists() && configFile.canRead()) {
+                    prootArgs.add("-b");
+                    prootArgs.add(config);
                 }
             }
 
