@@ -44,12 +44,12 @@ public class TermuxShellUtils {
             prootArgs.add("-0");
             prootArgs.add("-p"); // link2symlink
             prootArgs.add("-w");
-            prootArgs.add("/root");
+            prootArgs.add("/");
 
             // Comprehensive bind mounts for Android compatibility
             String[] systemBinds = {
                 "/system", "/vendor", "/apex", "/odm", "/product", "/system_ext",
-                "/linkerconfig/ld.config.txt", "/linkerconfig/com.android.art/ld.config.txt",
+                "/linkerconfig",
                 "/plat_property_contexts", "/property_contexts",
                 "/proc", "/sys", "/dev", "/sdcard", "/storage", "/data"
             };
