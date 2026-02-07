@@ -39,6 +39,7 @@ public class TermuxShellUtils {
             File rootfsDirFile = new File(filesDir + "/rootfs");
 
             prootArgs.add(filesDir + "/bin/proot");
+            prootArgs.add("--no-seccomp");
             prootArgs.add("-r");
             prootArgs.add(rootfsDirFile.getAbsolutePath());
             prootArgs.add("-0");
@@ -96,14 +97,15 @@ public class TermuxShellUtils {
             prootArgs.add(filesDir + "/tmp:/dev/shm");
             prootArgs.add("-b");
             prootArgs.add(filesDir + "/home:/root");
+
+            // Bind the entire app data directory to itself to handle absolute paths correctly
+            String dataDir = currentPackageContext.getApplicationInfo().dataDir;
             prootArgs.add("-b");
-            prootArgs.add(filesDir);
+            prootArgs.add(dataDir);
 
             // Fix for hardcoded com.termux paths in some proot builds
             prootArgs.add("-b");
             prootArgs.add(filesDir + ":/data/data/com.termux/files");
-            prootArgs.add("-b");
-            prootArgs.add(filesDir + ":/data/data/com.xterm/files");
 
             String osType = preferences.getRootfsOsType();
 
@@ -151,6 +153,7 @@ public class TermuxShellUtils {
             prootArgs.add("-c");
 
             String guestCommand = "unset LD_PRELOAD LD_LIBRARY_PATH; " +
+                                  "export PROOT_NO_SECCOMP=1; " +
                                   "export HOME=/root; " +
                                   "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/system/bin; " +
                                   "export TERM=xterm-256color; " +
