@@ -39,7 +39,6 @@ public class TermuxShellUtils {
             File rootfsDirFile = new File(filesDir + "/rootfs");
 
             prootArgs.add(filesDir + "/bin/proot");
-            prootArgs.add("--no-seccomp");
             prootArgs.add("-r");
             prootArgs.add(rootfsDirFile.getAbsolutePath());
             prootArgs.add("-0");
