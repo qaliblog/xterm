@@ -85,6 +85,7 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         environment.put(ENV_HOME, filesDir + "/home");
         environment.put(ENV_PREFIX, filesDir + "/usr");
         environment.put(ENV_TMPDIR, filesDir + "/tmp");
+        environment.put("FILES_DIR", filesDir);
 
         // Ensure host PATH includes app's bin directory for proot
         String appBinDir = filesDir + "/bin";
@@ -103,8 +104,18 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         environment.put("PROOT_LOADER32", "");
         environment.put("PROOT_FORCE_PTRACE_TRACEME", "1");
 
+        // Set linker path
+        File linker64 = new File("/system/bin/linker64");
+        environment.put("LINKER", linker64.exists() ? "/system/bin/linker64" : "/system/bin/linker");
+
         if (isRootfsInstalled) {
             environment.remove("LD_PRELOAD");
+            if (preferences != null) {
+                String bundlePath = preferences.getRootfsBundleLocalPath();
+                if (bundlePath != null) {
+                    environment.put("ROOTFS_BUNDLE_PATH", bundlePath);
+                }
+            }
         }
 
         // Always add app bin dir to LD_LIBRARY_PATH to support proot and its libraries

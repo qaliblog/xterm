@@ -34,156 +34,28 @@ public class TermuxShellUtils {
     public static String[] setupShellCommandArguments(@NonNull Context currentPackageContext, @NonNull String executable, @Nullable String[] arguments) {
         TermuxAppSharedPreferences preferences = TermuxAppSharedPreferences.build(currentPackageContext);
         if (preferences != null && preferences.isRootfsInstalled()) {
-            List<String> prootArgs = new ArrayList<>();
             String filesDir = currentPackageContext.getFilesDir().getAbsolutePath();
-            File rootfsDirFile = new File(filesDir + "/rootfs");
+            String initHostPath = filesDir + "/bin/init-host.sh";
 
-            prootArgs.add(filesDir + "/bin/proot");
-            prootArgs.add("-r");
-            prootArgs.add(rootfsDirFile.getAbsolutePath());
-            prootArgs.add("-0");
-            prootArgs.add("-p"); // link2symlink
-            prootArgs.add("-w");
-            prootArgs.add("/");
-            // Comprehensive bind mounts for Android compatibility
-            String[] systemBinds = {
-                "/system", "/vendor", "/apex", "/odm", "/product", "/system_ext",
-                "/plat_property_contexts", "/property_contexts",
-                "/proc", "/sys", "/dev", "/sdcard", "/storage"
-            };
-            for (String bind : systemBinds) {
-                if (new File(bind).exists()) {
-                    prootArgs.add("-b");
-                    prootArgs.add(bind);
-                }
-            }
+            List<String> result = new ArrayList<>();
+            result.add("/system/bin/sh");
+            result.add("-c");
 
-            // Bind specific linker config files if readable to avoid permission issues
-            String[] linkerConfigs = {
-                "/linkerconfig/ld.config.txt",
-                "/linkerconfig/com.android.art/ld.config.txt"
-            };
-            for (String config : linkerConfigs) {
-                File configFile = new File(config);
-                if (configFile.exists() && configFile.canRead()) {
-                    prootArgs.add("-b");
-                    prootArgs.add(config);
-                }
-            }
+            StringBuilder guestCommand = new StringBuilder();
+            guestCommand.append(initHostPath);
 
-            // Standard file descriptor binds
-            if (new File("/proc/self/fd").exists()) {
-                prootArgs.add("-b");
-                prootArgs.add("/proc/self/fd:/dev/fd");
-            }
-            if (new File("/proc/self/fd/0").exists()) {
-                prootArgs.add("-b");
-                prootArgs.add("/proc/self/fd/0:/dev/stdin");
-            }
-            if (new File("/proc/self/fd/1").exists()) {
-                prootArgs.add("-b");
-                prootArgs.add("/proc/self/fd/1:/dev/stdout");
-            }
-            if (new File("/proc/self/fd/2").exists()) {
-                prootArgs.add("-b");
-                prootArgs.add("/proc/self/fd/2:/dev/stderr");
-            }
-
-            prootArgs.add("-b");
-            prootArgs.add("/dev/urandom:/dev/random");
-
-            prootArgs.add("-b");
-            prootArgs.add(filesDir + "/tmp:/tmp");
-            prootArgs.add("-b");
-            prootArgs.add(filesDir + "/tmp:/dev/shm");
-            prootArgs.add("-b");
-            prootArgs.add(filesDir + "/home:/root");
-
-            // Bind app data directory variants to themselves to fix path resolution
-            String packageName = currentPackageContext.getPackageName();
-            String[] dataDirVariants = {
-                "/data/data/" + packageName,
-                "/data/user/0/" + packageName,
-                currentPackageContext.getApplicationInfo().dataDir
-            };
-            for (String variant : dataDirVariants) {
-                File variantFile = new File(variant);
-                if (variantFile.exists()) {
-                    prootArgs.add("-b");
-                    prootArgs.add(variant);
-                    try {
-                        String canonicalPath = variantFile.getCanonicalPath();
-                        if (!canonicalPath.equals(variant)) {
-                            prootArgs.add("-b");
-                            prootArgs.add(canonicalPath);
-                        }
-                    } catch (IOException ignored) {}
-                }
-            }
-
-            // Fix for hardcoded com.termux paths in some proot builds
-            prootArgs.add("-b");
-            prootArgs.add(filesDir + ":/data/data/com.termux/files");
-
-            String osType = preferences.getRootfsOsType();
-
-            // Comprehensive shell detection
-            String shell = null;
-            String[] commonShells = {"/bin/sh", "/bin/bash", "/usr/bin/sh", "/usr/bin/bash"};
-
-            // Try to find the preferred shell first
-            if ("ubuntu".equals(osType) || "debian".equals(osType) || "kali".equals(osType) || "arch".equals(osType)) {
-                if (new File(rootfsDirFile, "/bin/bash").exists()) shell = "/bin/bash";
-                else if (new File(rootfsDirFile, "/usr/bin/bash").exists()) shell = "/usr/bin/bash";
-            }
-
-            // Fallback to any available shell
-            if (shell == null) {
-                for (String s : commonShells) {
-                    if (new File(rootfsDirFile, s).exists()) {
-                        shell = s;
-                        break;
+            // If it's not a standard shell, pass the executable and arguments to init-host.sh
+            if (executable != null && !executable.endsWith("/sh") && !executable.endsWith("/bash") && !executable.endsWith("/zsh")) {
+                guestCommand.append(" ").append(executable);
+                if (arguments != null) {
+                    for (String arg : arguments) {
+                        guestCommand.append(" ").append(arg);
                     }
                 }
             }
 
-            if (shell == null) {
-                shell = "/bin/sh"; // Desperate fallback
-                Logger.logError(LOG_TAG, "No shell found in rootfs, defaulting to /bin/sh");
-            }
-
-            // Resolve symlinks to absolute path within rootfs to avoid execve issues
-            try {
-                File shellFile = new File(rootfsDirFile, shell);
-                if (shellFile.exists()) {
-                    String canonicalPath = shellFile.getCanonicalPath();
-                    if (canonicalPath.startsWith(rootfsDirFile.getAbsolutePath())) {
-                        shell = canonicalPath.substring(rootfsDirFile.getAbsolutePath().length());
-                        if (shell.isEmpty()) shell = "/";
-                    }
-                }
-            } catch (Exception e) {
-                Logger.logStackTraceWithMessage(LOG_TAG, "Failed to resolve shell symlink", e);
-            }
-
-            // Use the host shell as a stable entry point to proot's guest
-            prootArgs.add("/system/bin/sh");
-            prootArgs.add("-c");
-
-            String guestCommand = "unset LD_PRELOAD LD_LIBRARY_PATH; " +
-                                  "export PROOT_NO_SECCOMP=1; " +
-                                  "export PROOT_SECCOMP=0; " +
-                                  "export PROOT_FORCE_PTRACE_TRACEME=1; " +
-                                  "export HOME=/root; " +
-                                  "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/system/bin; " +
-                                  "export TERM=xterm-256color; " +
-                                  "export USER=root; " +
-                                  "export TMPDIR=/tmp; " +
-                                  "cd /root; " +
-                                  "if [ -x " + shell + " ]; then exec " + shell + " -l; else exec /system/bin/sh; fi";
-            prootArgs.add(guestCommand);
-
-            return prootArgs.toArray(new String[0]);
+            result.add(guestCommand.toString());
+            return result.toArray(new String[0]);
         }
 
         // Standard Termux execution logic (no rootfs)

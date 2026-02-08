@@ -161,6 +161,26 @@ public final class TermuxInstaller {
             }
         }
 
+        // Install common scripts
+        String[] commonScripts = {"init-host.sh", "init.sh", "update-fish-colors.sh"};
+        for (String script : commonScripts) {
+            try {
+                File outFile = new File(binDir, script);
+                try (java.io.InputStream in = context.getAssets().open(script);
+                     java.io.FileOutputStream out = new java.io.FileOutputStream(outFile)) {
+                    byte[] buffer = new byte[8192];
+                    int read;
+                    while ((read = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, read);
+                    }
+                }
+                Os.chmod(outFile.getAbsolutePath(), 0755);
+                Logger.logInfo(LOG_TAG, "Installed common script: " + script);
+            } catch (IOException e) {
+                Logger.logWarn(LOG_TAG, "Failed to install common script: " + script + ": " + e.getMessage());
+            }
+        }
+
         File usrDir = new File(context.getFilesDir(), "usr");
         if (!usrDir.exists() || com.termux.shared.termux.file.TermuxFileUtils.isTermuxPrefixDirectoryEmpty()) {
             Logger.logInfo(LOG_TAG, "Installing bundled Termux bootstrap");
