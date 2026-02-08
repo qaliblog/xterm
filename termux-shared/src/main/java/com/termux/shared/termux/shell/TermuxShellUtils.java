@@ -44,7 +44,7 @@ public class TermuxShellUtils {
             prootArgs.add("-0");
             prootArgs.add("-p"); // link2symlink
             prootArgs.add("-w");
-            prootArgs.add("/root");
+            prootArgs.add("/");
             // Comprehensive bind mounts for Android compatibility
             String[] systemBinds = {
                 "/system", "/vendor", "/apex", "/odm", "/product", "/system_ext",
@@ -99,14 +99,27 @@ public class TermuxShellUtils {
             prootArgs.add("-b");
             prootArgs.add(filesDir + "/home:/root");
 
-            // Bind the entire app data directory to itself to handle absolute paths correctly
-            String dataDir = currentPackageContext.getApplicationInfo().dataDir;
-            prootArgs.add("-b");
-            prootArgs.add(dataDir);
-
-            // Fix for hardcoded com.xterm paths used by the app or host
-            prootArgs.add("-b");
-            prootArgs.add(filesDir + ":/data/data/com.xterm/files");
+            // Bind app data directory variants to themselves to fix path resolution
+            String packageName = currentPackageContext.getPackageName();
+            String[] dataDirVariants = {
+                "/data/data/" + packageName,
+                "/data/user/0/" + packageName,
+                currentPackageContext.getApplicationInfo().dataDir
+            };
+            for (String variant : dataDirVariants) {
+                File variantFile = new File(variant);
+                if (variantFile.exists()) {
+                    prootArgs.add("-b");
+                    prootArgs.add(variant);
+                    try {
+                        String canonicalPath = variantFile.getCanonicalPath();
+                        if (!canonicalPath.equals(variant)) {
+                            prootArgs.add("-b");
+                            prootArgs.add(canonicalPath);
+                        }
+                    } catch (IOException ignored) {}
+                }
+            }
 
             // Fix for hardcoded com.termux paths in some proot builds
             prootArgs.add("-b");
