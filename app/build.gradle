@@ -284,16 +284,9 @@ def downloadBootstrap(String arch, String expectedChecksum, String version) {
     downloadAsset(remoteUrl, assetUrl, expectedChecksum)
 }
 
-def downloadProot(String arch, String expectedChecksum, String remoteUrl) {
-    def localZip = "src/main/assets/bin/proot-" + arch + ".zip"
-    downloadAsset(remoteUrl, localZip, expectedChecksum)
-
-    // Extract all files from zip into an arch-specific directory
-    copy {
-        from zipTree(new File(projectDir, localZip))
-        into new File(projectDir, "src/main/assets/bin/" + arch)
-    }
-    new File(projectDir, localZip).delete()
+def downloadProotFile(String arch, String fileName, String expectedChecksum, String remoteUrl) {
+    def localFile = "src/main/assets/bin/" + arch + "/" + fileName
+    downloadAsset(remoteUrl, localFile, expectedChecksum)
 }
 
 clean {
@@ -323,12 +316,19 @@ task downloadBootstraps() {
             throw new GradleException("Unsupported TERMUX_PACKAGE_VARIANT \"" + packageVariant + "\"")
         }
 
-        // Download proot binaries
-        def userlandUrl = "https://github.com/CypherpunkArmory/UserLAnd-Assets-Support/releases/download/v1.0.0/"
-        downloadProot("aarch64", "4bd808c7c17a9c281ad5c5c140ba9770861e4707eb089bcc14a7d15454f82e53", userlandUrl + "arm64-v8a-assets.zip")
-        downloadProot("arm", "ac8fbdf3768ec923b440a337b09bfff21b7910ef5c22a32426bbda30b90659f4", userlandUrl + "armeabi-v7a-assets.zip")
-        downloadProot("i686", "2b2c8562a90099579d1fc8a9c3a9d062a0859aba0e2050b8655ac3053c10bdd6", userlandUrl + "x86-assets.zip")
-        downloadProot("x86_64", "d5473b60b53a83635f1a44937a30682fd573cf5ddcfb75dd35c9161852e96288", userlandUrl + "x86_64-assets.zip")
+        // Download proot binaries from Karbon-PackagesX (as used in termos)
+        def karbonUrl = "https://raw.githubusercontent.com/Xed-Editor/Karbon-PackagesX/main/"
+
+        downloadProotFile("aarch64", "proot", "f25ac0a0258e18671c699154cdc88001fbd1cbe09df75c960a1ee8dad29d88ae", karbonUrl + "aarch64/proot")
+        downloadProotFile("aarch64", "libtalloc.so.2", "368262b345120a4e09ae961f4bda92e0cdfc18004145317f923abe403df6facf", karbonUrl + "aarch64/libtalloc.so.2")
+
+        downloadProotFile("arm", "proot", "2c1e1a6008aabedeb8f9404091e39624bdc21b0640ed846e12b141966a43dc72", karbonUrl + "arm/proot")
+        downloadProotFile("arm", "libtalloc.so.2", "f7e46ad757494f73e1b2bfe4bab51b28176741e23c92be8924e4dc4a5ca6921e", karbonUrl + "arm/libtalloc.so.2")
+
+        downloadProotFile("x86_64", "proot", "eca2f07a87bd0ae4acb0547de867e43d08c176daa09ff9f59573e0a53c92011e", karbonUrl + "x86_64/proot")
+        downloadProotFile("x86_64", "libtalloc.so.2", "cfa05bd07fb7e7fe2adda4a0309275d4e03e0102be368b02b800bba4b0cad4ae", karbonUrl + "x86_64/libtalloc.so.2")
+
+        // i686 proot is not available in Karbon-PackagesX, omitting to focus on modern architectures
     }
 }
 

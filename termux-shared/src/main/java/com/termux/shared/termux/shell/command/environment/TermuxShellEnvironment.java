@@ -97,7 +97,11 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
 
         environment.put("PROOT_TMP_DIR", filesDir + "/tmp");
         environment.put("PROOT_NO_SECCOMP", "1");
+        environment.put("PROOT_SECCOMP", "0");
         environment.put("PROOT_NO_HARDLINKS", "1");
+        environment.put("PROOT_LOADER", "");
+        environment.put("PROOT_LOADER32", "");
+        environment.put("PROOT_FORCE_PTRACE_TRACEME", "1");
 
         if (isRootfsInstalled) {
             environment.remove("LD_PRELOAD");

@@ -172,6 +172,8 @@ public class TermuxShellUtils {
 
             String guestCommand = "unset LD_PRELOAD LD_LIBRARY_PATH; " +
                                   "export PROOT_NO_SECCOMP=1; " +
+                                  "export PROOT_SECCOMP=0; " +
+                                  "export PROOT_FORCE_PTRACE_TRACEME=1; " +
                                   "export HOME=/root; " +
                                   "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/system/bin; " +
                                   "export TERM=xterm-256color; " +
