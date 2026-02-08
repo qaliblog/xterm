@@ -21,7 +21,11 @@ import androidx.annotation.Nullable;
 
 import com.xterm.R;
 import com.xterm.app.event.SystemEventReceiver;
+import com.xterm.app.linuxruntime.LinuxSessionCreator;
+import com.xterm.app.linuxruntime.LinuxRuntimeManager;
+import com.xterm.app.linuxruntime.RootfsManager;
 import com.xterm.app.terminal.TermuxTerminalSessionActivityClient;
+import com.termux.shared.shell.command.ExecutionCommand.Runner;
 import com.xterm.app.terminal.TermuxTerminalSessionServiceClient;
 import com.termux.shared.termux.plugins.TermuxPluginUtils;
 import com.termux.shared.data.IntentUtils;
@@ -603,6 +607,107 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
 
         if (Logger.getLogLevel() >= Logger.LOG_LEVEL_VERBOSE)
             Logger.logVerboseExtended(LOG_TAG, executionCommand.toString());
+
+        // Check if we should use Linux rootfs-based session (new interactive session, not plugin)
+        // For Termos, use Linux runtime for new interactive sessions
+        boolean useLinuxRuntime = !executionCommand.isPluginExecutionCommand &&
+                                  (executionCommand.executable == null || executionCommand.executable.isEmpty());
+
+        if (useLinuxRuntime) {
+            // Check if rootfs is installed
+            RootfsManager rootfsManager = new RootfsManager(this);
+            if (rootfsManager.isRootfsInstalled()) {
+                // Ensure setup scripts are ready
+                LinuxRuntimeManager runtimeManager = LinuxRuntimeManager.getInstance(this);
+                runtimeManager.ensureSetupScriptReady();
+
+                // Auto-run setup script on first session if not completed
+                if (!runtimeManager.isSetupComplete()) {
+                    com.xterm.app.linuxruntime.LinuxCommandExecutor commandExecutor =
+                        new com.xterm.app.linuxruntime.LinuxCommandExecutor(this);
+                    commandExecutor.runSetupIfNeeded(
+                        getTermuxTerminalSessionClient(),
+                        new com.xterm.app.linuxruntime.LinuxCommandExecutor.CommandCallback() {
+                            @Override
+                            public void onSuccess(String output) {
+                                Logger.logDebug(LOG_TAG, "Setup script completed: " + output);
+                            }
+
+                            @Override
+                            public void onError(String error) {
+                                Logger.logError(LOG_TAG, "Setup script failed: " + error);
+                            }
+                        }
+                    );
+                }
+
+                try {
+                    // Use LinuxSessionCreator to create proot-based session
+                    // Default to ALPINE mode (0), could be made configurable
+                    int workingMode = 0; // TODO: Make this configurable via preferences
+                    String sessionId = executionCommand.shellName != null ? executionCommand.shellName : "session-" + System.currentTimeMillis();
+
+                    TerminalSession terminalSession = LinuxSessionCreator.createSession(
+                        this,
+                        getTermuxTerminalSessionClient(),
+                        sessionId,
+                        workingMode
+                    );
+
+                    if (terminalSession != null) {
+                        // Set session name if provided
+                        if (executionCommand.shellName != null) {
+                            terminalSession.mSessionName = executionCommand.shellName;
+                        }
+
+                        // Create TermuxSession wrapper using reflection (constructor is private)
+                        try {
+                            java.lang.reflect.Constructor<TermuxSession> constructor =
+                                TermuxSession.class.getDeclaredConstructor(
+                                    TerminalSession.class,
+                                    ExecutionCommand.class,
+                                    TermuxSession.TermuxSessionClient.class,
+                                    boolean.class
+                                );
+                            constructor.setAccessible(true);
+                            TermuxSession newTermuxSession = constructor.newInstance(
+                                terminalSession,
+                                executionCommand,
+                                this,
+                                executionCommand.isPluginExecutionCommand
+                            );
+
+                            if (executionCommand.setState(ExecutionCommand.ExecutionState.EXECUTING)) {
+                                Logger.logDebug(LOG_TAG, "Created Linux rootfs-based TermuxSession successfully");
+                                // Add to shell manager and notify (same as normal flow)
+                                if (mShellManager != null) {
+                                    mShellManager.mTermuxSessions.add(newTermuxSession);
+                                    if (executionCommand.isPluginExecutionCommand) {
+                                        mShellManager.mPendingPluginExecutionCommands.remove(executionCommand);
+                                    }
+                                }
+                                if (mTermuxTerminalSessionActivityClient != null) {
+                                    mTermuxTerminalSessionActivityClient.termuxSessionListNotifyUpdated();
+                                }
+                                updateNotification();
+                                TermuxActivity.updateTermuxActivityStyling(this, false);
+                                return newTermuxSession;
+                            }
+                        } catch (Exception e) {
+                            Logger.logError(LOG_TAG, "Failed to create TermuxSession wrapper: " + e.getMessage());
+                            Logger.logStackTraceWithMessage(LOG_TAG, "Reflection error", e);
+                        }
+                    }
+                } catch (Exception e) {
+                    Logger.logError(LOG_TAG, "Failed to create Linux session: " + e.getMessage());
+                    Logger.logStackTraceWithMessage(LOG_TAG, "Linux session creation error", e);
+                    // Fall through to use default Termux session creation
+                }
+            } else {
+                Logger.logWarn(LOG_TAG, "Rootfs not installed, cannot create Linux session. User should be redirected to setup.");
+                // Fall through to use default Termux session creation (will likely fail)
+            }
+        }
 
         // Use standard Termux bootstrap session (no rootfs/VNC)
         TermuxSession newTermuxSession = TermuxSession.execute(this, executionCommand, getTermuxTerminalSessionClient(),

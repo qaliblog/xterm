@@ -97,8 +97,9 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         }
 
         environment.put("PROOT_TMP_DIR", filesDir + "/tmp");
-        environment.put("PROOT_NO_SECCOMP", "1");
-        environment.put("PROOT_SECCOMP", "0");
+        // Following termos, we don't disable seccomp by default unless troubleshooting
+        // environment.put("PROOT_NO_SECCOMP", "1");
+        // environment.put("PROOT_SECCOMP", "0");
         environment.put("PROOT_NO_HARDLINKS", "1");
         environment.put("PROOT_LOADER", "");
         environment.put("PROOT_LOADER32", "");
@@ -118,12 +119,13 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
             }
         }
 
-        // Always add app bin dir to LD_LIBRARY_PATH to support proot and its libraries
+        // Add app's local lib dir to LD_LIBRARY_PATH to support proot and its libraries
+        String localLibDir = filesDir.getParent() + "/local/lib";
         String currentLdLibraryPath = environment.get(ENV_LD_LIBRARY_PATH);
         if (currentLdLibraryPath == null) {
-            environment.put(ENV_LD_LIBRARY_PATH, appBinDir);
-        } else if (!currentLdLibraryPath.contains(appBinDir)) {
-            environment.put(ENV_LD_LIBRARY_PATH, appBinDir + ":" + currentLdLibraryPath);
+            environment.put(ENV_LD_LIBRARY_PATH, localLibDir + ":" + appBinDir);
+        } else if (!currentLdLibraryPath.contains(localLibDir)) {
+            environment.put(ENV_LD_LIBRARY_PATH, localLibDir + ":" + appBinDir + ":" + currentLdLibraryPath);
         }
 
         return environment;

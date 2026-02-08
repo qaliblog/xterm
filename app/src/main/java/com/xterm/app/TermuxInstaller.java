@@ -60,11 +60,17 @@ public final class TermuxInstaller {
                     if (preferences == null) return;
 
                     File filesDir = activity.getFilesDir();
+                    File localDir = new File(filesDir.getParentFile(), "local");
                     if (!filesDir.exists()) filesDir.mkdirs();
+                    if (!localDir.exists()) localDir.mkdirs();
 
-                    File rootfsDir = new File(filesDir, "rootfs");
+                    // Determine rootfs directory name based on OS type
+                    String osType = preferences.getRootfsOsType();
+                    if (osType == null) osType = "alpine";
+                    File rootfsDir = new File(localDir, osType);
+
                     Logger.logInfo(LOG_TAG, "Preparing rootfs directory at " + rootfsDir.getAbsolutePath());
-                    FileUtils.clearDirectory("rootfs", rootfsDir.getAbsolutePath());
+                    FileUtils.clearDirectory(osType, rootfsDir.getAbsolutePath());
                     if (!rootfsDir.exists()) rootfsDir.mkdirs();
                     try { Os.chmod(rootfsDir.getAbsolutePath(), 0755); } catch (Exception e) {}
 
@@ -98,6 +104,29 @@ public final class TermuxInstaller {
                         throw new Exception("Rootfs extraction produced no files.");
                     }
                     Logger.logInfo(LOG_TAG, "Rootfs extraction completed. Items in rootfs: " + contents.length);
+
+                    // Copy proot and libs to local as expected by init-host
+                    File localBinDir = new File(localDir, "bin");
+                    File localLibDir = new File(localDir, "lib");
+                    localBinDir.mkdirs();
+                    localLibDir.mkdirs();
+
+                    File prootInFiles = new File(filesDir, "bin/proot");
+                    if (prootInFiles.exists()) {
+                        File prootInLocal = new File(localBinDir, "proot");
+                        FileUtils.copyFile("proot", prootInFiles.getAbsolutePath(), prootInLocal.getAbsolutePath(), true);
+                        prootInLocal.setExecutable(true);
+                    }
+
+                    File[] binFiles = new File(filesDir, "bin").listFiles();
+                    if (binFiles != null) {
+                        for (File f : binFiles) {
+                            if (f.getName().contains(".so")) {
+                                File dest = new File(localLibDir, f.getName());
+                                FileUtils.copyFile(f.getName(), f.getAbsolutePath(), dest.getAbsolutePath(), true);
+                            }
+                        }
+                    }
 
                     preferences.setRootfsInstalled(true);
                     activity.runOnUiThread(whenDone);
