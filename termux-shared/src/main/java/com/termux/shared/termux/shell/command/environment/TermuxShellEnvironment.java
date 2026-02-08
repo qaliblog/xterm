@@ -120,7 +120,7 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         }
 
         // Add app's local lib dir to LD_LIBRARY_PATH to support proot and its libraries
-        String localLibDir = filesDir.getParent() + "/local/lib";
+        String localLibDir = new File(filesDir).getParent() + "/local/lib";
         String currentLdLibraryPath = environment.get(ENV_LD_LIBRARY_PATH);
         if (currentLdLibraryPath == null) {
             environment.put(ENV_LD_LIBRARY_PATH, localLibDir + ":" + appBinDir);
