@@ -38,28 +38,36 @@ public class TermuxShellUtils {
             String filesDir = currentPackageContext.getFilesDir().getAbsolutePath();
             File rootfsDirFile = new File(filesDir + "/rootfs");
 
-            String linker = new File("/system/bin/linker64").exists() ? "/system/bin/linker64" : "/system/bin/linker";
-            prootArgs.add(linker);
             prootArgs.add(filesDir + "/bin/proot");
             prootArgs.add("-r");
             prootArgs.add(rootfsDirFile.getAbsolutePath());
             prootArgs.add("-0");
             prootArgs.add("-p"); // link2symlink
-            prootArgs.add("-L");
             prootArgs.add("-w");
-            prootArgs.add("/root");
-
+            prootArgs.add("/");
             // Comprehensive bind mounts for Android compatibility
             String[] systemBinds = {
                 "/system", "/vendor", "/apex", "/odm", "/product", "/system_ext",
-                "/linkerconfig/ld.config.txt", "/linkerconfig/com.android.art/ld.config.txt",
                 "/plat_property_contexts", "/property_contexts",
-                "/proc", "/sys", "/dev", "/sdcard", "/storage", "/data"
+                "/proc", "/sys", "/dev", "/sdcard", "/storage"
             };
             for (String bind : systemBinds) {
                 if (new File(bind).exists()) {
                     prootArgs.add("-b");
                     prootArgs.add(bind);
+                }
+            }
+
+            // Bind specific linker config files if readable to avoid permission issues
+            String[] linkerConfigs = {
+                "/linkerconfig/ld.config.txt",
+                "/linkerconfig/com.android.art/ld.config.txt"
+            };
+            for (String config : linkerConfigs) {
+                File configFile = new File(config);
+                if (configFile.exists() && configFile.canRead()) {
+                    prootArgs.add("-b");
+                    prootArgs.add(config);
                 }
             }
 
@@ -90,14 +98,32 @@ public class TermuxShellUtils {
             prootArgs.add(filesDir + "/tmp:/dev/shm");
             prootArgs.add("-b");
             prootArgs.add(filesDir + "/home:/root");
-            prootArgs.add("-b");
-            prootArgs.add(filesDir);
+
+            // Bind app data directory variants to themselves to fix path resolution
+            String packageName = currentPackageContext.getPackageName();
+            String[] dataDirVariants = {
+                "/data/data/" + packageName,
+                "/data/user/0/" + packageName,
+                currentPackageContext.getApplicationInfo().dataDir
+            };
+            for (String variant : dataDirVariants) {
+                File variantFile = new File(variant);
+                if (variantFile.exists()) {
+                    prootArgs.add("-b");
+                    prootArgs.add(variant);
+                    try {
+                        String canonicalPath = variantFile.getCanonicalPath();
+                        if (!canonicalPath.equals(variant)) {
+                            prootArgs.add("-b");
+                            prootArgs.add(canonicalPath);
+                        }
+                    } catch (IOException ignored) {}
+                }
+            }
 
             // Fix for hardcoded com.termux paths in some proot builds
             prootArgs.add("-b");
             prootArgs.add(filesDir + ":/data/data/com.termux/files");
-            prootArgs.add("-b");
-            prootArgs.add(filesDir + ":/data/data/com.xterm/files");
 
             String osType = preferences.getRootfsOsType();
 
@@ -145,6 +171,9 @@ public class TermuxShellUtils {
             prootArgs.add("-c");
 
             String guestCommand = "unset LD_PRELOAD LD_LIBRARY_PATH; " +
+                                  "export PROOT_NO_SECCOMP=1; " +
+                                  "export PROOT_SECCOMP=0; " +
+                                  "export PROOT_FORCE_PTRACE_TRACEME=1; " +
                                   "export HOME=/root; " +
                                   "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/system/bin; " +
                                   "export TERM=xterm-256color; " +
