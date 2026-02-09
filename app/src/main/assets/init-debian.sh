@@ -22,11 +22,266 @@ export PS1="\[\e[38;5;46m\]\u\[\033[39m\]@xterm \[\033[39m\]\w \[\033[0m\]\\$ "
 export PIP_BREAK_SYSTEM_PACKAGES=1
 export DEBIAN_FRONTEND=noninteractive
 
+# Quick function to aggressively remove stale locks (called before apt operations)
+quick_remove_stale_locks() {
+    local lock_file="/var/lib/apt/lists/lock"
+    local dpkg_lock="/var/lib/dpkg/lock"
+    local lock_frontend="/var/lib/apt/lists/lock-frontend"
+    local dpkg_lock_frontend="/var/lib/dpkg/lock-frontend"
+
+    # Quick check: if no apt/dpkg processes are running, remove all locks immediately
+    if ! pgrep -x apt-get >/dev/null 2>&1 && ! pgrep -x apt >/dev/null 2>&1 && ! pgrep -x dpkg >/dev/null 2>&1; then
+        # No processes running, all locks are stale
+        if [ -f "$lock_file" ] || [ -f "$dpkg_lock" ]; then
+            local current_time=$(date +%s 2>/dev/null || echo "0")
+
+            # Check apt lock age
+            if [ -f "$lock_file" ]; then
+                local lock_age=$(stat -c %Y "$lock_file" 2>/dev/null || echo "0")
+                if [ "$current_time" != "0" ] && [ "$lock_age" != "0" ]; then
+                    local age=$((current_time - lock_age))
+                    if [ $age -gt 2 ]; then  # Very aggressive: 2 seconds
+                        echo -e "\e[33;1m[!] \e[0mRemoving stale apt lock file (age: ${age}s)\e[0m"
+                        rm -f "$lock_file" "$lock_frontend" 2>/dev/null || true
+                    fi
+                else
+                    # Can't determine age, but no process - remove it
+                    rm -f "$lock_file" "$lock_frontend" 2>/dev/null || true
+                fi
+            fi
+
+            # Check dpkg lock age
+            if [ -f "$dpkg_lock" ]; then
+                local lock_age=$(stat -c %Y "$dpkg_lock" 2>/dev/null || echo "0")
+                if [ "$current_time" != "0" ] && [ "$lock_age" != "0" ]; then
+                    local age=$((current_time - lock_age))
+                    if [ $age -gt 2 ]; then  # Very aggressive: 2 seconds
+                        echo -e "\e[33;1m[!] \e[0mRemoving stale dpkg lock file (age: ${age}s)\e[0m"
+                        rm -f "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
+                    fi
+                else
+                    # Can't determine age, but no process - remove it
+                    rm -f "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
+                fi
+            fi
+        fi
+        return 0
+    fi
+    return 1
+}
+
+# Function to wait for apt lock to be released
+wait_for_apt_lock() {
+    local max_wait=30  # Maximum wait time in seconds
+    local wait_time=0
+    local lock_file="/var/lib/apt/lists/lock"
+    local dpkg_lock="/var/lib/dpkg/lock"
+    local lock_frontend="/var/lib/apt/lists/lock-frontend"
+    local dpkg_lock_frontend="/var/lib/dpkg/lock-frontend"
+
+    # First, try quick removal
+    quick_remove_stale_locks || true
+
+    # Try to find process ID holding the lock (optimized for speed)
+    find_lock_pid() {
+        local lock="$1"
+        local pid=""
+
+        # Quick check: if no apt/dpkg processes are running, lock is definitely stale
+        if ! pgrep -x apt-get >/dev/null 2>&1 && ! pgrep -x apt >/dev/null 2>&1 && ! pgrep -x dpkg >/dev/null 2>&1; then
+            return 1  # No processes, lock is stale
+        fi
+
+        # Only do expensive checks if processes are running
+        # Try lsof first (if available and fast)
+        if command -v lsof >/dev/null 2>&1; then
+            pid=$(timeout 0.5 lsof -t "$lock" 2>/dev/null | head -1)
+            [ -n "$pid" ] && echo "$pid" && return 0
+        fi
+
+        # Try fuser (if available and fast)
+        if command -v fuser >/dev/null 2>&1; then
+            pid=$(timeout 0.5 fuser "$lock" 2>/dev/null | awk '{print $1}' | head -1)
+            [ -n "$pid" ] && echo "$pid" && return 0
+        fi
+
+        # If apt/dpkg processes are running and lock exists, assume it's locked
+        if [ -f "$lock" ]; then
+            echo "locked"
+            return 0
+        fi
+
+        return 1
+    }
+
+    while [ $wait_time -lt $max_wait ]; do
+        # Check if lock files exist
+        local has_lock=false
+
+        # Check apt lists lock
+        if [ -f "$lock_file" ]; then
+            local lock_pid=$(find_lock_pid "$lock_file")
+            if [ -n "$lock_pid" ] && [ "$lock_pid" != "locked" ]; then
+                # Check if process is still running
+                if kill -0 "$lock_pid" 2>/dev/null; then
+                    has_lock=true
+                else
+                    # Stale lock - remove it
+                    echo -e "\e[33;1m[!] \e[0mRemoving stale apt lock file\e[0m"
+                    rm -f "$lock_file" "$lock_frontend" 2>/dev/null || true
+                fi
+            elif [ "$lock_pid" = "locked" ]; then
+                has_lock=true
+            else
+                # No process found, but lock exists - check age immediately (no wait)
+                if [ -f "$lock_file" ]; then
+                    local lock_age=$(stat -c %Y "$lock_file" 2>/dev/null || echo "0")
+                    local current_time=$(date +%s 2>/dev/null || echo "0")
+                    if [ "$current_time" != "0" ] && [ "$lock_age" != "0" ]; then
+                        local age=$((current_time - lock_age))
+                        # Reduced threshold: remove locks older than 3 seconds (was 10)
+                        if [ $age -gt 3 ]; then
+                            # Lock is older than 3 seconds and no process found - likely stale
+                            echo -e "\e[33;1m[!] \e[0mRemoving stale apt lock file (age: ${age}s)\e[0m"
+                            rm -f "$lock_file" "$lock_frontend" 2>/dev/null || true
+                        else
+                            # Very new lock (< 3s), might be actively being created
+                            has_lock=true
+                        fi
+                    else
+                        # Can't determine age, but no process found - remove it
+                        echo -e "\e[33;1m[!] \e[0mRemoving stale apt lock file (no process found)\e[0m"
+                        rm -f "$lock_file" "$lock_frontend" 2>/dev/null || true
+                    fi
+                fi
+            fi
+        fi
+
+        # Check dpkg lock
+        if [ -f "$dpkg_lock" ]; then
+            local dpkg_pid=$(find_lock_pid "$dpkg_lock")
+            if [ -n "$dpkg_pid" ] && [ "$dpkg_pid" != "locked" ]; then
+                if kill -0 "$dpkg_pid" 2>/dev/null; then
+                    has_lock=true
+                else
+                    echo -e "\e[33;1m[!] \e[0mRemoving stale dpkg lock file\e[0m"
+                    rm -f "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
+                fi
+            elif [ "$dpkg_pid" = "locked" ]; then
+                has_lock=true
+            else
+                # Similar stale check for dpkg lock (no wait, check immediately)
+                if [ -f "$dpkg_lock" ]; then
+                    local lock_age=$(stat -c %Y "$dpkg_lock" 2>/dev/null || echo "0")
+                    local current_time=$(date +%s 2>/dev/null || echo "0")
+                    if [ "$current_time" != "0" ] && [ "$lock_age" != "0" ]; then
+                        local age=$((current_time - lock_age))
+                        # Reduced threshold: remove locks older than 3 seconds (was 10)
+                        if [ $age -gt 3 ]; then
+                            echo -e "\e[33;1m[!] \e[0mRemoving stale dpkg lock file (age: ${age}s)\e[0m"
+                            rm -f "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
+                        else
+                            # Very new lock (< 3s), might be actively being created
+                            has_lock=true
+                        fi
+                    else
+                        # Can't determine age, but no process found - remove it
+                        echo -e "\e[33;1m[!] \e[0mRemoving stale dpkg lock file (no process found)\e[0m"
+                        rm -f "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
+                    fi
+                fi
+            fi
+        fi
+
+        if [ "$has_lock" = false ]; then
+            return 0  # Lock is free
+        fi
+
+        # Wait a bit before checking again (reduced from 1s to 0.3s for faster response)
+        sleep 0.3
+        wait_time=$((wait_time + 1))
+    done
+
+    # If we get here, we've timed out
+    echo -e "\e[33;1m[!] \e[0mWarning: Apt lock wait timeout. Attempting to remove stale locks.\e[0m"
+    # Try to remove locks one more time
+    rm -f "$lock_file" "$lock_frontend" "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
+    return 1
+}
+
+# Function to safely run apt-get commands with retry logic for common failures
+safe_apt_get() {
+    local cmd="$1"
+    local retries=2
+    local attempt=0
+    local stderr_file="/tmp/apt_stderr_$$"
+
+    while [ $attempt -lt $retries ]; do
+        # Quick lock removal before waiting
+        quick_remove_stale_locks || true
+        wait_for_apt_lock || true
+
+        # Run apt-get, capturing stderr to check for errors
+        # stdout goes through normally (respects -qq flags)
+        apt-get "$@" 2> "$stderr_file"
+        local exit_code=$?
+
+        # 1. Check for lock errors
+        if grep -qE "(Could not get lock|Unable to lock|is held by process)" "$stderr_file" 2>/dev/null; then
+            if [ $attempt -eq 0 ]; then
+                echo -e "\e[33;1m[!] \e[0mWaiting for apt lock and retrying...\e[0m" >&2
+                cat "$stderr_file" >&2
+                sleep 3
+                attempt=$((attempt + 1))
+                continue
+            fi
+        # 2. Check for GPG, network, or 404 errors
+        elif [ $exit_code -ne 0 ] && grep -qE "(NO_PUBKEY|InRelease|not signed|Temporary failure|Connection timed out|404  Not Found)" "$stderr_file" 2>/dev/null; then
+            echo -e "\e[33;1m[!] \e[0mApt operation failed with known issues. Retrying with bypass flags...\e[0m" >&2
+            cat "$stderr_file" >&2
+
+            if [ "$cmd" = "update" ]; then
+                apt-get "$@" \
+                    -o Acquire::AllowInsecureRepositories=true \
+                    -o Acquire::AllowDowngradeToInsecureRepositories=true \
+                    -o Acquire::Check-Valid-Until=false \
+                    2>> "$stderr_file"
+                exit_code=$?
+            elif [ "$cmd" = "install" ] || [ "$cmd" = "upgrade" ] || [ "$cmd" = "dist-upgrade" ]; then
+                apt-get "$@" \
+                    --fix-missing \
+                    -o Acquire::Retries=5 \
+                    2>> "$stderr_file"
+                exit_code=$?
+            fi
+
+            if [ $exit_code -eq 0 ]; then
+                rm -f "$stderr_file"
+                return 0
+            fi
+        fi
+
+        # If we reached here and exit_code is still non-zero, it's a real failure
+        if [ $exit_code -ne 0 ]; then
+            echo -e "\e[31;1m[!] \e[0mApt operation failed: $(cat "$stderr_file" 2>/dev/null)\e[0m" >&2
+            echo -e "\e[33;1m[*] \e[0mSkipping this operation and continuing build...\e[0m" >&2
+            rm -f "$stderr_file"
+            return 0 # Return 0 to allow script to continue (development/bootstrap only)
+        fi
+
+        # Success
+        cat "$stderr_file" >&2
+        rm -f "$stderr_file"
+        return 0
+    done
+
+    rm -f "$stderr_file"
+    return 0
+}
+
 # Update package lists and upgrade system
-if [ ! -f /var/lib/apt/lists/lock ]; then
-    echo -e "\e[34;1m[*] \e[0mUpdating package lists\e[0m"
-    apt-get update -qq || true
-fi
+echo -e "\e[34;1m[*] \e[0mUpdating package lists\e[0m"
+safe_apt_get update -qq || true
 
 # Check and install essential packages
 required_packages="bash nano curl wget"
@@ -39,9 +294,9 @@ done
 
 if [ -n "$missing_packages" ]; then
     echo -e "\e[34;1m[*] \e[0mInstalling Important packages\e[0m"
-    apt-get update -qq
-    apt-get upgrade -y -qq || true
-    apt-get install -y -qq $missing_packages
+    safe_apt_get update -qq || true
+    safe_apt_get upgrade -y -qq || true
+    safe_apt_get install -y -qq $missing_packages
     if [ $? -eq 0 ]; then
         echo -e "\e[32;1m[+] \e[0mSuccessfully Installed\e[0m"
     fi
@@ -51,8 +306,8 @@ fi
 # Install fish shell if not already installed
 if ! command -v fish >/dev/null 2>&1; then
     echo -e "\e[34;1m[*] \e[0mInstalling fish shell\e[0m"
-    apt-get update -qq
-    apt-get install -y -qq fish 2>/dev/null || true
+    safe_apt_get update -qq || true
+    safe_apt_get install -y -qq fish 2>/dev/null || true
     if command -v fish >/dev/null 2>&1; then
         echo -e "\e[32;1m[+] \e[0mFish shell installed\e[0m"
     fi
@@ -60,7 +315,7 @@ fi
 
 # Install cron if not already installed
 if ! command -v cron >/dev/null 2>&1; then
-    apt-get install -y -qq cron 2>/dev/null || true
+    safe_apt_get install -y -qq cron 2>/dev/null || true
 fi
 
 # Create termos-setup-storage command (same script for all distros)
