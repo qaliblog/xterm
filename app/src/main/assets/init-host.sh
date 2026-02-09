@@ -1,3 +1,9 @@
+# Ensure proot doesn't use seccomp on modern Android where it causes ENOSYS
+export PROOT_NO_SECCOMP=1
+export PROOT_SECCOMP=0
+export PROOT_FORCE_PTRACE_TRACEME=1
+export PROOT_NO_HARDLINKS=1
+
 # Determine rootfs file and directory from environment or defaults
 ROOTFS_FILE="${ROOTFS_FILE:-alpine.tar.gz}"
 ROOTFS_DIR="${ROOTFS_DIR:-alpine}"
@@ -76,6 +82,7 @@ done
 
 
 ARGS="--kill-on-exit"
+ARGS="$ARGS -k 5.4.0"
 ARGS="$ARGS -w /"
 
 for system_mnt in /apex /odm /product /system /system_ext /vendor \
@@ -97,15 +104,12 @@ ARGS="$ARGS -b /dev"
 ARGS="$ARGS -b /dev/urandom:/dev/random"
 ARGS="$ARGS -b /proc"
 
-# Bind the app's root data directory and its canonical path to avoid getcwd failures
-DATA_DIR=$(dirname "$PREFIX")
-REAL_DATA_DIR=$(realpath "$DATA_DIR" 2>/dev/null || echo "$DATA_DIR")
-ARGS="$ARGS -b $DATA_DIR"
-if [ "$REAL_DATA_DIR" != "$DATA_DIR" ]; then
-    ARGS="$ARGS -b $REAL_DATA_DIR"
-fi
-
+# Bind the app's data directory and its canonical path to avoid getcwd failures
+REAL_PREFIX=$(realpath "$PREFIX" 2>/dev/null || echo "$PREFIX")
 ARGS="$ARGS -b $PREFIX"
+if [ "$REAL_PREFIX" != "$PREFIX" ]; then
+    ARGS="$ARGS -b $REAL_PREFIX"
+fi
 # Create stat/vmstat files if they don't exist to avoid PRoot warnings
 mkdir -p "$PREFIX/local" 2>/dev/null || true
 if [ ! -f "$PREFIX/local/stat" ]; then
@@ -141,7 +145,6 @@ if [ -e "/proc/self/fd/2" ]; then
 fi
 
 
-ARGS="$ARGS -b $PREFIX"
 ARGS="$ARGS -b /sys"
 
 if [ ! -d "$ROOTFS_DIR_PATH/tmp" ]; then

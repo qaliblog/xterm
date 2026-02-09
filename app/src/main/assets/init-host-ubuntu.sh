@@ -1,3 +1,9 @@
+# Ensure proot doesn't use seccomp on modern Android where it causes ENOSYS
+export PROOT_NO_SECCOMP=1
+export PROOT_SECCOMP=0
+export PROOT_FORCE_PTRACE_TRACEME=1
+export PROOT_NO_HARDLINKS=1
+
 # Determine rootfs file and directory from environment or defaults
 ROOTFS_FILE="${ROOTFS_FILE:-ubuntu.tar.gz}"
 ROOTFS_DIR="${ROOTFS_DIR:-ubuntu}"
@@ -76,6 +82,7 @@ done
 
 
 ARGS="--kill-on-exit"
+ARGS="$ARGS -k 5.4.0"
 ARGS="$ARGS -w /"
 
 for system_mnt in /apex /odm /product /system /system_ext /vendor \
@@ -93,10 +100,16 @@ unset system_mnt
 ARGS="$ARGS -b /sdcard"
 ARGS="$ARGS -b /storage"
 ARGS="$ARGS -b /dev"
-ARGS="$ARGS -b /data"
+# ARGS="$ARGS -b /data" # Removed risky binding to avoid permission issues
 ARGS="$ARGS -b /dev/urandom:/dev/random"
 ARGS="$ARGS -b /proc"
+
+# Bind the app's data directory and its canonical path to avoid getcwd failures
+REAL_PREFIX=$(realpath "$PREFIX" 2>/dev/null || echo "$PREFIX")
 ARGS="$ARGS -b $PREFIX"
+if [ "$REAL_PREFIX" != "$PREFIX" ]; then
+    ARGS="$ARGS -b $REAL_PREFIX"
+fi
 # Create stat/vmstat files if they don't exist to avoid PRoot warnings
 mkdir -p "$PREFIX/local" 2>/dev/null || true
 if [ ! -f "$PREFIX/local/stat" ]; then
@@ -132,7 +145,6 @@ if [ -e "/proc/self/fd/2" ]; then
 fi
 
 
-ARGS="$ARGS -b $PREFIX"
 ARGS="$ARGS -b /sys"
 
 if [ ! -d "$ROOTFS_DIR_PATH/tmp" ]; then
