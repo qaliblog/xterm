@@ -24,35 +24,45 @@ fi
 export PS1="\[\e[38;5;46m\]\u\[\033[39m\]@xterm \[\033[39m\]\w \[\033[0m\]\\$ "
 # shellcheck disable=SC2034
 export PIP_BREAK_SYSTEM_PACKAGES=1
-required_packages="bash gcompat glib nano"
-missing_packages=""
-for pkg in $required_packages; do
-    if ! apk info -e $pkg >/dev/null 2>&1; then
-        missing_packages="$missing_packages $pkg"
-    fi
-done
-if [ -n "$missing_packages" ]; then
-    echo -e "\e[34;1m[*] \e[0mInstalling Important packages\e[0m"
-    apk update && apk upgrade
-    apk add $missing_packages
-    if [ $? -eq 0 ]; then
-        echo -e "\e[32;1m[+] \e[0mSuccessfully Installed\e[0m"
-    fi
-    echo -e "\e[34m[*] \e[0mUse \e[32mapk\e[0m to install new packages\e[0m"
-fi
 
-# Install fish shell if not already installed
-if ! command -v fish >/dev/null 2>&1; then
-    echo -e "\e[34;1m[*] \e[0mInstalling fish shell\e[0m"
-    apk add fish 2>/dev/null || true
-    if command -v fish >/dev/null 2>&1; then
-        echo -e "\e[32;1m[+] \e[0mFish shell installed\e[0m"
-    fi
-fi
+# Ensure home directory exists
+mkdir -p "$HOME" 2>/dev/null || true
 
-# Install cron if not already installed
-if ! command -v crond >/dev/null 2>&1; then
-    apk add dcron 2>/dev/null || true
+# Initial bootstrap (only once per rootfs)
+if [ ! -f "$HOME/.termos_bootstrapped" ]; then
+    required_packages="bash gcompat glib nano"
+    missing_packages=""
+    for pkg in $required_packages; do
+        if ! apk info -e $pkg >/dev/null 2>&1; then
+            missing_packages="$missing_packages $pkg"
+        fi
+    done
+    if [ -n "$missing_packages" ]; then
+        printf "\033[34;1m[*] \033[0mInstalling Important packages\033[0m\n"
+        apk update && apk upgrade
+        apk add $missing_packages
+        if [ $? -eq 0 ]; then
+            printf "\033[32;1m[+] \033[0mSuccessfully Installed\033[0m\n"
+        fi
+        printf "\033[34m[*] \033[0mUse \033[32mapk\033[0m to install new packages\033[0m\n"
+    fi
+
+    # Install fish shell if not already installed
+    if ! command -v fish >/dev/null 2>&1; then
+        printf "\033[34;1m[*] \033[0mInstalling fish shell\033[0m\n"
+        apk add fish 2>/dev/null || true
+        if command -v fish >/dev/null 2>&1; then
+            printf "\033[32;1m[+] \033[0mFish shell installed\033[0m\n"
+        fi
+    fi
+
+    # Install cron if not already installed
+    if ! command -v crond >/dev/null 2>&1; then
+        apk add dcron 2>/dev/null || true
+    fi
+
+    # Mark bootstrap as complete
+    touch "$HOME/.termos_bootstrapped" 2>/dev/null || true
 fi
 
 # Copy mount-proc helper script if it exists
@@ -332,22 +342,22 @@ if ! pgrep -x crond >/dev/null 2>&1; then
     crond -b -S -l 0 >/dev/null 2>&1 &
     sleep 1
     if pgrep -x crond >/dev/null 2>&1; then
-        echo -e "\e[32;1m[+] \e[0mCron daemon started\e[0m"
+        printf "\033[32;1m[+] \033[0mCron daemon started\033[0m\n"
     else
         # Try alternative method: run in foreground in background using nohup
         nohup crond -f -l 0 >/dev/null 2>&1 &
         sleep 1
         if pgrep -x crond >/dev/null 2>&1; then
-            echo -e "\e[32;1m[+] \e[0mCron daemon started (alternative method)\e[0m"
+            printf "\033[32;1m[+] \033[0mCron daemon started (alternative method)\033[0m\n"
         else
             # Final fallback: try simple background start without flags
             crond >/dev/null 2>&1 &
             sleep 1
             if pgrep -x crond >/dev/null 2>&1; then
-                echo -e "\e[32;1m[+] \e[0mCron daemon started (fallback method)\e[0m"
+                printf "\033[32;1m[+] \033[0mCron daemon started (fallback method)\033[0m\n"
             else
-                echo -e "\e[33;1m[!] \e[0mWarning: Failed to start cron daemon (fish theme updates may not work automatically)\e[0m"
-                echo -e "\e[33;1m[!] \e[0mYou can manually run: $PREFIX/local/bin/update-fish-colors.sh\e[0m"
+                printf "\033[33;1m[!] \033[0mWarning: Failed to start cron daemon (fish theme updates may not work automatically)\033[0m\n"
+                printf "\033[33;1m[!] \033[0mYou can manually run: $PREFIX/local/bin/update-fish-colors.sh\033[0m\n"
             fi
         fi
     fi
@@ -371,8 +381,8 @@ fi
 
 #fix linker warning
 if [ ! -f /linkerconfig/ld.config.txt ]; then
-    mkdir -p /linkerconfig
-    touch /linkerconfig/ld.config.txt
+    mkdir -p /linkerconfig 2>/dev/null || true
+    touch /linkerconfig/ld.config.txt 2>/dev/null || true
 fi
 
 # Fix group warnings by adding missing group entries
@@ -385,9 +395,10 @@ if [ -f /etc/group ]; then
 fi
 
 if [ "$#" -eq 0 ]; then
-    source /etc/profile
+    source /etc/profile 2>/dev/null || true
     export PS1="\[\e[38;5;46m\]\u\[\033[39m\]@xterm \[\033[39m\]\w \[\033[0m\]\\$ "
-    cd $HOME
+    mkdir -p "$HOME" 2>/dev/null || true
+    cd "$HOME" || cd / || true
     # Start fish shell if available, otherwise fall back to ash
     if command -v fish >/dev/null 2>&1; then
         # Ensure fish colors are set before starting

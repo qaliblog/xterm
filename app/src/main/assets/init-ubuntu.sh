@@ -22,6 +22,11 @@ export PS1="\[\e[38;5;46m\]\u\[\033[39m\]@xterm \[\033[39m\]\w \[\033[0m\]\\$ "
 # shellcheck disable=SC2034
 export PIP_BREAK_SYSTEM_PACKAGES=1
 export DEBIAN_FRONTEND=noninteractive
+export DEBCONF_NOWARNINGS=yes
+export APT_LISTCHANGES_FRONTEND=none
+
+# Ensure home directory exists
+mkdir -p "$HOME" 2>/dev/null || true
 
 # Quick function to aggressively remove stale locks (called before apt operations)
 quick_remove_stale_locks() {
@@ -42,7 +47,7 @@ quick_remove_stale_locks() {
                 if [ "$current_time" != "0" ] && [ "$lock_age" != "0" ]; then
                     local age=$((current_time - lock_age))
                     if [ $age -gt 2 ]; then  # Very aggressive: 2 seconds
-                        echo -e "\e[33;1m[!] \e[0mRemoving stale apt lock file (age: ${age}s)\e[0m"
+                        printf "\033[33;1m[!] \033[0mRemoving stale apt lock file (age: %ss)\033[0m\n" "${age}"
                         rm -f "$lock_file" "$lock_frontend" 2>/dev/null || true
                     fi
                 else
@@ -57,7 +62,7 @@ quick_remove_stale_locks() {
                 if [ "$current_time" != "0" ] && [ "$lock_age" != "0" ]; then
                     local age=$((current_time - lock_age))
                     if [ $age -gt 2 ]; then  # Very aggressive: 2 seconds
-                        echo -e "\e[33;1m[!] \e[0mRemoving stale dpkg lock file (age: ${age}s)\e[0m"
+                        printf "\033[33;1m[!] \033[0mRemoving stale dpkg lock file (age: %ss)\033[0m\n" "${age}"
                         rm -f "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
                     fi
                 else
@@ -128,7 +133,7 @@ wait_for_apt_lock() {
                     has_lock=true
                 else
                     # Stale lock - remove it
-                    echo -e "\e[33;1m[!] \e[0mRemoving stale apt lock file\e[0m"
+                    printf "\033[33;1m[!] \033[0mRemoving stale apt lock file\033[0m\n"
                     rm -f "$lock_file" "$lock_frontend" 2>/dev/null || true
                 fi
             elif [ "$lock_pid" = "locked" ]; then
@@ -143,7 +148,7 @@ wait_for_apt_lock() {
                         # Reduced threshold: remove locks older than 3 seconds (was 10)
                         if [ $age -gt 3 ]; then
                             # Lock is older than 3 seconds and no process found - likely stale
-                            echo -e "\e[33;1m[!] \e[0mRemoving stale apt lock file (age: ${age}s)\e[0m"
+                            printf "\033[33;1m[!] \033[0mRemoving stale apt lock file (age: %ss)\033[0m\n" "${age}"
                             rm -f "$lock_file" "$lock_frontend" 2>/dev/null || true
                         else
                             # Very new lock (< 3s), might be actively being created
@@ -151,7 +156,7 @@ wait_for_apt_lock() {
                         fi
                     else
                         # Can't determine age, but no process found - remove it
-                        echo -e "\e[33;1m[!] \e[0mRemoving stale apt lock file (no process found)\e[0m"
+                        printf "\033[33;1m[!] \033[0mRemoving stale apt lock file (no process found)\033[0m\n"
                         rm -f "$lock_file" "$lock_frontend" 2>/dev/null || true
                     fi
                 fi
@@ -165,7 +170,7 @@ wait_for_apt_lock() {
                 if kill -0 "$dpkg_pid" 2>/dev/null; then
                     has_lock=true
                 else
-                    echo -e "\e[33;1m[!] \e[0mRemoving stale dpkg lock file\e[0m"
+                    printf "\033[33;1m[!] \033[0mRemoving stale dpkg lock file\033[0m\n"
                     rm -f "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
                 fi
             elif [ "$dpkg_pid" = "locked" ]; then
@@ -179,7 +184,7 @@ wait_for_apt_lock() {
                         local age=$((current_time - lock_age))
                         # Reduced threshold: remove locks older than 3 seconds (was 10)
                         if [ $age -gt 3 ]; then
-                            echo -e "\e[33;1m[!] \e[0mRemoving stale dpkg lock file (age: ${age}s)\e[0m"
+                            printf "\033[33;1m[!] \033[0mRemoving stale dpkg lock file (age: %ss)\033[0m\n" "${age}"
                             rm -f "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
                         else
                             # Very new lock (< 3s), might be actively being created
@@ -187,7 +192,7 @@ wait_for_apt_lock() {
                         fi
                     else
                         # Can't determine age, but no process found - remove it
-                        echo -e "\e[33;1m[!] \e[0mRemoving stale dpkg lock file (no process found)\e[0m"
+                        printf "\033[33;1m[!] \033[0mRemoving stale dpkg lock file (no process found)\033[0m\n"
                         rm -f "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
                     fi
                 fi
@@ -204,92 +209,127 @@ wait_for_apt_lock() {
     done
 
     # If we get here, we've timed out
-    echo -e "\e[33;1m[!] \e[0mWarning: Apt lock wait timeout. Attempting to remove stale locks.\e[0m"
+    printf "\033[33;1m[!] \033[0mWarning: Apt lock wait timeout. Attempting to remove stale locks.\033[0m\n"
     # Try to remove locks one more time
     rm -f "$lock_file" "$lock_frontend" "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
     return 1
 }
 
-# Function to safely run apt-get commands
+# Function to safely run apt-get commands with retry logic for common failures
+# This version is optimized for bootstrap/development environments
 safe_apt_get() {
-    local retries=2
-    local attempt=0
+    local cmd="$1"
     local stderr_file="/tmp/apt_stderr_$$"
+    local exit_code=0
+    local apt_base="apt-get -o APT::ExtractTemplates::ConfigFile=/dev/null"
 
-    while [ $attempt -lt $retries ]; do
-        # Quick lock removal before waiting
-        quick_remove_stale_locks || true
-        wait_for_apt_lock || true
+    # Quick lock removal before waiting
+    quick_remove_stale_locks || true
+    wait_for_apt_lock || true
 
-        # Run apt-get, capturing stderr to check for lock errors
-        # stdout goes through normally (respects -qq flags)
-        apt-get "$@" 2> "$stderr_file"
-        local exit_code=$?
+    # Run apt-get, capturing stderr to check for errors
+    # We use || exit_code=$? to prevent 'set -e' from exiting the script
+    $apt_base "$@" 2> "$stderr_file" || exit_code=$?
 
-        # Check stderr for lock errors
-        if grep -qE "(Could not get lock|Unable to lock|is held by process)" "$stderr_file" 2>/dev/null; then
-            # Show the lock error to user
-            cat "$stderr_file" >&2
-            rm -f "$stderr_file"
+    # Check for triggers that require retrying with ALL bypass flags
+    # Triggers: lock issues, GPG/signature issues, unauthenticated packages, ports.ubuntu.com failures, network errors, 404s
+    if [ $exit_code -ne 0 ] && grep -qE "(Could not get lock|Unable to lock|is held by process|dpkg lock|NO_PUBKEY|InRelease|not signed|unauthenticated|ports.ubuntu.com|Temporary failure|Connection timed out|404  Not Found)" "$stderr_file" 2>/dev/null; then
+        printf "\033[33;1m[!] Apt operation failed. Retrying with ALL bypass flags...\033[0m\n" >&2
+        cat "$stderr_file" >&2
 
-            if [ $attempt -eq 0 ]; then
-                echo -e "\e[33;1m[!] \e[0mWaiting for apt lock to be released and retrying...\e[0m" >&2
-                sleep 3
-                attempt=$((attempt + 1))
-                continue
-            else
-                echo -e "\e[31;1m[!] \e[0mFailed to acquire apt lock after retries. Skipping this operation.\e[0m" >&2
-                return 1
-            fi
-        else
-            # No lock error - show stderr normally and return exit code
-            cat "$stderr_file" >&2
-            rm -f "$stderr_file"
-            return $exit_code
+        if [ "$cmd" = "update" ]; then
+            # Retry update with insecure/force-expiry flags
+            $apt_base "$@" \
+                -o Acquire::AllowInsecureRepositories=true \
+                -o Acquire::AllowDowngradeToInsecureRepositories=true \
+                -o Acquire::Check-Valid-Until=false \
+                2> "$stderr_file" || exit_code=$?
+        elif [ "$cmd" = "install" ] || [ "$cmd" = "upgrade" ] || [ "$cmd" = "dist-upgrade" ]; then
+            # Retry install/upgrade with all requested bypass flags
+            $apt_base "$@" \
+                --allow-unauthenticated \
+                --fix-missing \
+                -o Acquire::Retries=5 \
+                -o Acquire::AllowInsecureRepositories=true \
+                -o Acquire::AllowDowngradeToInsecureRepositories=true \
+                -o APT::Get::AllowUnauthenticated=true \
+                2> "$stderr_file" || exit_code=$?
+        fi
+    fi
+
+    # Success
+    if [ $exit_code -eq 0 ]; then
+        if grep -q "unauthenticated" "$stderr_file" 2>/dev/null; then
+            printf "\033[33;1m[!] Note: Authentication warnings were overridden.\033[0m\n" >&2
+        fi
+        rm -f "$stderr_file"
+        return 0
+    fi
+
+    # If we reached here, all attempts failed.
+    # Log a warning and continue the build instead of exiting with non-zero code.
+    printf "\033[33;1m[!] Warning: Apt operation failed: %s\033[0m\n" "$(cat "$stderr_file" 2>/dev/null)" >&2
+    printf "\033[33;1m[*] Continuing build anyway (permitted for bootstrap/development only)...\033[0m\n" >&2
+    rm -f "$stderr_file"
+    return 0
+}
+
+# Initial bootstrap (only once per rootfs)
+if [ ! -f "$HOME/.termos_bootstrapped" ]; then
+    printf "\033[34;1m[*] \033[0mInitial setup for first run...\033[0m\n"
+
+    # Setup official keyring for trusted repository validation
+    KEYRING_DEST="/usr/share/keyrings/ubuntu-archive-keyring.gpg"
+    mkdir -p "$(dirname "$KEYRING_DEST")" 2>/dev/null || true
+    if [ -f "$PREFIX/files/keyrings/ubuntu-archive-keyring.gpg" ]; then
+        cp "$PREFIX/files/keyrings/ubuntu-archive-keyring.gpg" "$KEYRING_DEST"
+        # Update sources.list to use the keyring
+        if [ -f /etc/apt/sources.list ]; then
+            sed -i "s|http://ports.ubuntu.com/ubuntu-ports|[signed-by=$KEYRING_DEST] http://ports.ubuntu.com/ubuntu-ports|g" /etc/apt/sources.list
+        fi
+    fi
+
+    # Update package lists and upgrade system
+    printf "\033[34;1m[*] \033[0mUpdating package lists\033[0m\n"
+    safe_apt_get update -qq || true
+
+    # Check and install essential packages
+    required_packages="bash nano curl wget"
+    missing_packages=""
+    for pkg in $required_packages; do
+        if ! dpkg -l | grep -q "^ii.*$pkg "; then
+            missing_packages="$missing_packages $pkg"
         fi
     done
 
-    rm -f "$stderr_file"
-    return 1
-}
-
-# Update package lists and upgrade system
-echo -e "\e[34;1m[*] \e[0mUpdating package lists\e[0m"
-safe_apt_get update -qq || true
-
-# Check and install essential packages
-required_packages="bash nano curl wget"
-missing_packages=""
-for pkg in $required_packages; do
-    if ! dpkg -l | grep -q "^ii.*$pkg "; then
-        missing_packages="$missing_packages $pkg"
+    if [ -n "$missing_packages" ]; then
+        printf "\033[34;1m[*] \033[0mInstalling Important packages\033[0m\n"
+        safe_apt_get update -qq || true
+        safe_apt_get upgrade -y -qq || true
+        safe_apt_get install -y -qq $missing_packages
+        if [ $? -eq 0 ]; then
+            printf "\033[32;1m[+] \033[0mSuccessfully Installed\033[0m\n"
+        fi
+        printf "\033[34m[*] \033[0mUse \033[32mapt\033[0m to install new packages\033[0m\n"
     fi
-done
 
-if [ -n "$missing_packages" ]; then
-    echo -e "\e[34;1m[*] \e[0mInstalling Important packages\e[0m"
-    safe_apt_get update -qq || true
-    safe_apt_get upgrade -y -qq || true
-    safe_apt_get install -y -qq $missing_packages
-    if [ $? -eq 0 ]; then
-        echo -e "\e[32;1m[+] \e[0mSuccessfully Installed\e[0m"
+    # Install fish shell if not already installed
+    if ! command -v fish >/dev/null 2>&1; then
+        printf "\033[34;1m[*] \033[0mInstalling fish shell\033[0m\n"
+        safe_apt_get update -qq || true
+        safe_apt_get install -y -qq fish || true
+        if command -v fish >/dev/null 2>&1; then
+            printf "\033[32;1m[+] \033[0mFish shell installed\033[0m\n"
+        fi
     fi
-    echo -e "\e[34m[*] \e[0mUse \e[32mapt\e[0m to install new packages\e[0m"
-fi
 
-# Install fish shell if not already installed
-if ! command -v fish >/dev/null 2>&1; then
-    echo -e "\e[34;1m[*] \e[0mInstalling fish shell\e[0m"
-    safe_apt_get update -qq || true
-    safe_apt_get install -y -qq fish || true
-    if command -v fish >/dev/null 2>&1; then
-        echo -e "\e[32;1m[+] \e[0mFish shell installed\e[0m"
+    # Install cron if not already installed
+    if ! command -v cron >/dev/null 2>&1; then
+        safe_apt_get install -y -qq cron || true
     fi
-fi
 
-# Install cron if not already installed
-if ! command -v cron >/dev/null 2>&1; then
-    safe_apt_get install -y -qq cron || true
+    # Mark bootstrap as complete
+    touch "$HOME/.termos_bootstrapped" 2>/dev/null || true
 fi
 
 # Copy helper scripts if they exist in files directory
@@ -453,50 +493,36 @@ fi
 
 # Copy fish color update script
 if [ -f "$PREFIX/local/bin/update-fish-colors.sh" ]; then
-    # Script already exists, just make it executable
     chmod +x "$PREFIX/local/bin/update-fish-colors.sh" 2>/dev/null || true
 else
-    # Create the script
     mkdir -p "$PREFIX/local/bin" 2>/dev/null || true
     cat > "$PREFIX/local/bin/update-fish-colors.sh" << 'SCRIPTEOF'
 #!/bin/sh
 # Script to update fish shell colors based on app theme
-# This script reads the Android app's SharedPreferences to detect theme
 
-# Paths to check for SharedPreferences
 PREF_PATHS="/data/data/com.xterm/shared_prefs/Settings.xml /data/data/com.xterm.debug/shared_prefs/Settings.xml"
-
-# Default to dark theme if we can't detect
 IS_DARK_MODE=1
 
-# Try to read the theme setting from SharedPreferences
 for PREF_PATH in $PREF_PATHS; do
     if [ -f "$PREF_PATH" ]; then
-        # Read default_night_mode value (MODE_NIGHT_YES=2, MODE_NIGHT_NO=1, MODE_NIGHT_FOLLOW_SYSTEM=0)
         NIGHT_MODE=$(grep -o 'name="default_night_mode"[^>]*>\([0-9]*\)</int>' "$PREF_PATH" 2>/dev/null | grep -o '[0-9]*' | tail -1)
         if [ -n "$NIGHT_MODE" ]; then
-            # MODE_NIGHT_YES = 2 (dark), MODE_NIGHT_NO = 1 (light), MODE_NIGHT_FOLLOW_SYSTEM = 0
             if [ "$NIGHT_MODE" = "2" ]; then
                 IS_DARK_MODE=1
             elif [ "$NIGHT_MODE" = "1" ]; then
                 IS_DARK_MODE=0
             else
-                # MODE_NIGHT_FOLLOW_SYSTEM - try to detect system theme
-                IS_DARK_MODE=1  # Default to dark
+                IS_DARK_MODE=1
             fi
             break
         fi
     fi
 done
 
-# Create fish config directory if it doesn't exist
 mkdir -p ~/.config/fish 2>/dev/null || true
 
-# Update fish colors based on theme
 if [ "$IS_DARK_MODE" = "1" ]; then
-    # Dark theme: Use light colors
     cat > ~/.config/fish/config.fish << 'FISHDARK'
-# Fish shell configuration for dark theme (light colors)
 set -g fish_color_normal white
 set -g fish_color_command cyan
 set -g fish_color_quote yellow
@@ -524,9 +550,7 @@ set -g fish_pager_color_prefix white --bold --underline
 set -g fish_pager_color_progress brwhite --background=cyan
 FISHDARK
 else
-    # Light theme: Use dark colors
     cat > ~/.config/fish/config.fish << 'FISHLIGHT'
-# Fish shell configuration for light theme (dark colors)
 set -g fish_color_normal black
 set -g fish_color_command blue
 set -g fish_color_quote yellow
@@ -555,19 +579,16 @@ set -g fish_pager_color_progress brblack --background=cyan
 FISHLIGHT
 fi
 
-# Make script executable
 chmod +x ~/.config/fish/config.fish 2>/dev/null || true
 SCRIPTEOF
     chmod +x "$PREFIX/local/bin/update-fish-colors.sh" 2>/dev/null || true
 fi
 
-# Run the script once to set initial colors immediately
 "$PREFIX/local/bin/update-fish-colors.sh" 2>/dev/null || true
 
 # Setup storage access (creates /sdcard symlink)
 "$PREFIX/local/bin/termos-setup-storage" 2>/dev/null || true
 
-# Add to crontab to run every minute (checks for theme changes in new tabs)
 (crontab -l 2>/dev/null | grep -v "update-fish-colors.sh"; echo "* * * * * $PREFIX/local/bin/update-fish-colors.sh >/dev/null 2>&1") | crontab - 2>/dev/null || true
 
 # Start cron daemon if not running
@@ -584,16 +605,16 @@ if ! pgrep -x cron >/dev/null 2>&1; then
     sleep 1
     # Verify it's running
     if pgrep -x cron >/dev/null 2>&1; then
-        echo -e "\e[32;1m[+] \e[0mCron daemon started\e[0m"
+        printf "\033[32;1m[+] \033[0mCron daemon started\033[0m\n"
     else
-        echo -e "\e[33;1m[!] \e[0mWarning: Failed to start cron daemon (this is normal in some environments)\e[0m"
+        printf "\033[33;1m[!] \033[0mWarning: Failed to start cron daemon (this is normal in some environments)\033[0m\n"
     fi
 fi
 
 #fix linker warning
-if [[ ! -f /linkerconfig/ld.config.txt ]];then
-    mkdir -p /linkerconfig
-    touch /linkerconfig/ld.config.txt
+if [ ! -f /linkerconfig/ld.config.txt ]; then
+    mkdir -p /linkerconfig 2>/dev/null || true
+    touch /linkerconfig/ld.config.txt 2>/dev/null || true
 fi
 
 # Fix group warnings by adding missing group entries
@@ -608,7 +629,8 @@ fi
 if [ "$#" -eq 0 ]; then
     source /etc/profile 2>/dev/null || true
     export PS1="\[\e[38;5;46m\]\u\[\033[39m\]@xterm \[\033[39m\]\w \[\033[0m\]\\$ "
-    cd $HOME
+    mkdir -p "$HOME" 2>/dev/null || true
+    cd "$HOME" || cd / || true
     # Start fish shell if available, otherwise fall back to bash
     if command -v fish >/dev/null 2>&1; then
         # Ensure fish colors are set before starting

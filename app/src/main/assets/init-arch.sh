@@ -16,51 +16,60 @@ export PS1="\[\e[38;5;46m\]\u\[\033[39m\]@xterm \[\033[39m\]\w \[\033[0m\]\\$ "
 # shellcheck disable=SC2034
 export PIP_BREAK_SYSTEM_PACKAGES=1
 
-# Initialize pacman keyring if needed
-if [ ! -d /etc/pacman.d/gnupg ]; then
-    echo -e "\e[34;1m[*] \e[0mInitializing pacman keyring\e[0m"
-    pacman-key --init 2>/dev/null || true
-    pacman-key --populate archlinux 2>/dev/null || true
-fi
+# Ensure home directory exists
+mkdir -p "$HOME" 2>/dev/null || true
 
-# Update package database
-if [ -f /usr/bin/pacman ]; then
-    echo -e "\e[34;1m[*] \e[0mUpdating package database\e[0m"
-    pacman -Sy --noconfirm 2>/dev/null || true
-fi
-
-# Check and install essential packages
-required_packages="bash nano curl wget"
-missing_packages=""
-for pkg in $required_packages; do
-    if ! pacman -Q $pkg >/dev/null 2>&1; then
-        missing_packages="$missing_packages $pkg"
+# Initial bootstrap (only once per rootfs)
+if [ ! -f "$HOME/.termos_bootstrapped" ]; then
+    # Initialize pacman keyring if needed
+    if [ ! -d /etc/pacman.d/gnupg ]; then
+        printf "\033[34;1m[*] \033[0mInitializing pacman keyring\033[0m\n"
+        pacman-key --init 2>/dev/null || true
+        pacman-key --populate archlinux 2>/dev/null || true
     fi
-done
 
-if [ -n "$missing_packages" ]; then
-    echo -e "\e[34;1m[*] \e[0mInstalling Important packages\e[0m"
-    pacman -Sy --noconfirm
-    pacman -S --noconfirm $missing_packages 2>/dev/null || true
-    if [ $? -eq 0 ]; then
-        echo -e "\e[32;1m[+] \e[0mSuccessfully Installed\e[0m"
+    # Update package database
+    if [ -f /usr/bin/pacman ]; then
+        printf "\033[34;1m[*] \033[0mUpdating package database\033[0m\n"
+        pacman -Sy --noconfirm 2>/dev/null || true
     fi
-    echo -e "\e[34m[*] \e[0mUse \e[32mpacman\e[0m to install new packages\e[0m"
-fi
 
-# Install fish shell if not already installed
-if ! command -v fish >/dev/null 2>&1; then
-    echo -e "\e[34;1m[*] \e[0mInstalling fish shell\e[0m"
-    pacman -Sy --noconfirm
-    pacman -S --noconfirm fish 2>/dev/null || true
-    if command -v fish >/dev/null 2>&1; then
-        echo -e "\e[32;1m[+] \e[0mFish shell installed\e[0m"
+    # Check and install essential packages
+    required_packages="bash nano curl wget"
+    missing_packages=""
+    for pkg in $required_packages; do
+        if ! pacman -Q $pkg >/dev/null 2>&1; then
+            missing_packages="$missing_packages $pkg"
+        fi
+    done
+
+    if [ -n "$missing_packages" ]; then
+        printf "\033[34;1m[*] \033[0mInstalling Important packages\033[0m\n"
+        pacman -Sy --noconfirm
+        pacman -S --noconfirm $missing_packages 2>/dev/null || true
+        if [ $? -eq 0 ]; then
+            printf "\033[32;1m[+] \033[0mSuccessfully Installed\033[0m\n"
+        fi
+        printf "\033[34m[*] \033[0mUse \033[32mpacman\033[0m to install new packages\033[0m\n"
     fi
-fi
 
-# Install cronie for cron support
-if ! command -v crond >/dev/null 2>&1; then
-    pacman -S --noconfirm cronie 2>/dev/null || true
+    # Install fish shell if not already installed
+    if ! command -v fish >/dev/null 2>&1; then
+        printf "\033[34;1m[*] \033[0mInstalling fish shell\033[0m\n"
+        pacman -Sy --noconfirm
+        pacman -S --noconfirm fish 2>/dev/null || true
+        if command -v fish >/dev/null 2>&1; then
+            printf "\033[32;1m[+] \033[0mFish shell installed\033[0m\n"
+        fi
+    fi
+
+    # Install cronie for cron support
+    if ! command -v crond >/dev/null 2>&1; then
+        pacman -S --noconfirm cronie 2>/dev/null || true
+    fi
+
+    # Mark bootstrap as complete
+    touch "$HOME/.termos_bootstrapped" 2>/dev/null || true
 fi
 
 # Create termos-setup-storage command (same script for all distros)
@@ -288,15 +297,15 @@ if ! pgrep -x crond >/dev/null 2>&1; then
     crond -b -S -l 0 >/dev/null 2>&1 &
     sleep 1
     if pgrep -x crond >/dev/null 2>&1; then
-        echo -e "\e[32;1m[+] \e[0mCron daemon started\e[0m"
+        printf "\033[32;1m[+] \033[0mCron daemon started\033[0m\n"
     else
-        echo -e "\e[33;1m[!] \e[0mWarning: Failed to start cron daemon\e[0m"
+        printf "\033[33;1m[!] \033[0mWarning: Failed to start cron daemon\033[0m\n"
     fi
 fi
 
-if [[ ! -f /linkerconfig/ld.config.txt ]];then
-    mkdir -p /linkerconfig
-    touch /linkerconfig/ld.config.txt
+if [ ! -f /linkerconfig/ld.config.txt ]; then
+    mkdir -p /linkerconfig 2>/dev/null || true
+    touch /linkerconfig/ld.config.txt 2>/dev/null || true
 fi
 
 # Fix group warnings by adding missing group entries
@@ -311,7 +320,8 @@ fi
 if [ "$#" -eq 0 ]; then
     source /etc/profile 2>/dev/null || true
     export PS1="\[\e[38;5;46m\]\u\[\033[39m\]@xterm \[\033[39m\]\w \[\033[0m\]\\$ "
-    cd $HOME
+    mkdir -p "$HOME" 2>/dev/null || true
+    cd "$HOME" || cd / || true
     # Start fish shell if available, otherwise fall back to bash
     if command -v fish >/dev/null 2>&1; then
         # Ensure fish colors are set before starting

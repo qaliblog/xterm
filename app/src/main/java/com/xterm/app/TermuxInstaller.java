@@ -224,6 +224,30 @@ public final class TermuxInstaller {
             }
         }
 
+        // Install keyrings
+        File keyringDir = new File(context.getFilesDir(), "keyrings");
+        if (!keyringDir.exists()) keyringDir.mkdirs();
+        try {
+            String[] keyrings = context.getAssets().list("keyrings");
+            if (keyrings != null) {
+                for (String keyring : keyrings) {
+                    File outFile = new File(keyringDir, keyring);
+                    try (java.io.InputStream in = context.getAssets().open("keyrings/" + keyring);
+                         java.io.FileOutputStream out = new java.io.FileOutputStream(outFile)) {
+                        byte[] buffer = new byte[8192];
+                        int read;
+                        while ((read = in.read(buffer)) != -1) {
+                            out.write(buffer, 0, read);
+                        }
+                    }
+                    Os.chmod(outFile.getAbsolutePath(), 0644);
+                    Logger.logInfo(LOG_TAG, "Installed keyring: " + keyring);
+                }
+            }
+        } catch (IOException e) {
+            Logger.logWarn(LOG_TAG, "Failed to install keyrings: " + e.getMessage());
+        }
+
         File usrDir = new File(context.getFilesDir(), "usr");
         if (!usrDir.exists() || com.termux.shared.termux.file.TermuxFileUtils.isTermuxPrefixDirectoryEmpty()) {
             Logger.logInfo(LOG_TAG, "Installing bundled Termux bootstrap");
