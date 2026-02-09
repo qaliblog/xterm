@@ -11,6 +11,7 @@ import android.system.Os;
 
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.xterm.R;
+import com.xterm.app.linuxruntime.RootfsManager;
 import com.termux.shared.file.FileUtils;
 import com.termux.shared.termux.crash.TermuxCrashUtils;
 import com.termux.shared.termux.file.TermuxFileUtils;
@@ -127,6 +128,15 @@ public final class TermuxInstaller {
                             }
                         }
                     }
+
+                    // Register with RootfsManager
+                    RootfsManager rootfsManager = new RootfsManager(activity);
+                    String rootfsFileName = osType + ".tar.gz"; // Standardized name
+                    int workingMode = osType.equals("alpine") ? 0 : 2;
+
+                    rootfsManager.markRootfsInstalled(rootfsFileName, osType.substring(0, 1).toUpperCase() + osType.substring(1));
+                    rootfsManager.setRootfsFileForWorkingMode(workingMode, rootfsFileName);
+                    rootfsManager.setRootfsDistroType(rootfsFileName, osType.toUpperCase());
 
                     preferences.setRootfsInstalled(true);
                     activity.runOnUiThread(whenDone);

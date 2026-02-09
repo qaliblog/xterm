@@ -643,8 +643,12 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
 
                 try {
                     // Use LinuxSessionCreator to create proot-based session
-                    // Default to ALPINE mode (0), could be made configurable
-                    int workingMode = 0; // TODO: Make this configurable via preferences
+                    TermuxAppSharedPreferences preferences = TermuxAppSharedPreferences.build(this);
+                    String osType = (preferences != null) ? preferences.getRootfsOsType() : "alpine";
+                    if (osType == null) osType = "alpine";
+
+                    int workingMode = osType.equals("alpine") ? 0 : 2; // 0=ALPINE, 2=UBUNTU/DEBIAN/KALI/ARCH
+
                     String sessionId = executionCommand.shellName != null ? executionCommand.shellName : "session-" + System.currentTimeMillis();
 
                     TerminalSession terminalSession = LinuxSessionCreator.createSession(

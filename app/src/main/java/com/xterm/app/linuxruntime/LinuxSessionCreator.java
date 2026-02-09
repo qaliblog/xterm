@@ -45,7 +45,18 @@ public class LinuxSessionCreator {
 
         // Determine rootfs directory name
         String rootfsDirName;
-        if ("ubuntu.tar.gz".equals(rootfsFileName)) {
+
+        // Try to get from preferences first to match what was installed
+        com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences preferences =
+            com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences.build(context);
+        String osType = (preferences != null) ? preferences.getRootfsOsType() : null;
+
+        if (osType != null) {
+            rootfsDirName = osType;
+            if (!rootfsFileName.startsWith(osType)) {
+                rootfsFileName = osType + ".tar.gz";
+            }
+        } else if ("ubuntu.tar.gz".equals(rootfsFileName)) {
             rootfsDirName = "ubuntu";
         } else if ("alpine.tar.gz".equals(rootfsFileName)) {
             rootfsDirName = "alpine";
@@ -209,6 +220,7 @@ public class LinuxSessionCreator {
         env.add("LANG=C.UTF-8");
         env.add("BIN=" + localBinDir.getAbsolutePath());
         env.add("DEBUG=" + (BuildConfig.DEBUG ? "1" : "0"));
+        env.add("FILES_DIR=" + filesDir.getAbsolutePath());
         env.add("PREFIX=" + filesDir.getParentFile().getAbsolutePath());
         env.add("LD_LIBRARY_PATH=" + localLibDir.getAbsolutePath());
 

@@ -12,7 +12,7 @@ import java.util.List;
  * Ported from aterm's Rootfs.kt
  */
 public class RootfsManager {
-    private static final String PREFS_NAME = "termos_rootfs";
+    private static final String PREFS_NAME = "xterm_rootfs";
     private static final String KEY_INSTALLED_ROOTFS = "installed_rootfs";
     private static final String KEY_ROOTFS_NAME_PREFIX = "rootfs_name_";
     private static final String KEY_ROOTFS_FILE_MODE_PREFIX = "rootfs_file_mode_";
@@ -95,7 +95,16 @@ public class RootfsManager {
      * Check if a specific rootfs is installed
      */
     public boolean isRootfsInstalled(String rootfsName) {
-        return new File(rootfsDir, rootfsName).exists();
+        if (new File(rootfsDir, rootfsName).exists()) return true;
+
+        // Also check if extracted directory exists in local/
+        File localDir = new File(rootfsDir.getParentFile(), "local");
+        String dirName = rootfsName;
+        if (dirName.endsWith(".tar.gz")) dirName = dirName.substring(0, dirName.length() - 7);
+        else if (dirName.endsWith(".tar.xz")) dirName = dirName.substring(0, dirName.length() - 7);
+        else if (dirName.endsWith(".tar")) dirName = dirName.substring(0, dirName.length() - 4);
+
+        return new File(localDir, dirName).exists();
     }
 
     /**

@@ -1,5 +1,14 @@
 # Determine rootfs file and directory from environment or defaults
 # Following termos exact flow
+
+# Fix PREFIX if it's the standard Termux one (matching TermuxConstants)
+if echo "$PREFIX" | grep -q "/files/usr$"; then
+    # Get the app root directory (parent of files)
+    PREFIX=$(echo "$PREFIX" | sed 's/\/files\/usr$//')
+elif [ -n "$FILES_DIR" ]; then
+    PREFIX=$(dirname "$FILES_DIR")
+fi
+
 ROOTFS_FILE="${ROOTFS_FILE:-alpine.tar.gz}"
 ROOTFS_DIR="${ROOTFS_DIR:-alpine}"
 
@@ -60,7 +69,14 @@ ARGS="$ARGS -b /data"
 # Bind app directories
 ARGS="$ARGS -b $PREFIX"
 # Bind individual variants to fix path resolution
+# Use a more reliable way to get package name if possible
 packageName=$(basename "$PREFIX")
+if [ "$packageName" = "usr" ] || [ "$packageName" = "files" ]; then
+    # We might still be in a subfolder, try to get it from the path
+    packageName=$(echo "$PREFIX" | sed -n 's/.*\/data\/data\/\([^/]*\).*/\1/p; s/.*\/data\/user\/0\/\([^/]*\).*/\1/p' | head -n 1)
+fi
+[ -z "$packageName" ] && packageName="com.xterm"
+
 for variant in "/data/data/$packageName" "/data/user/0/$packageName"; do
     if [ -d "$variant" ]; then
         ARGS="$ARGS -b $variant"
