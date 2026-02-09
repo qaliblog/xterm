@@ -12,6 +12,11 @@ if [ ! -s /etc/resolv.conf ]; then
     echo "nameserver 8.8.8.8" > /etc/resolv.conf
 fi
 
+# Disable APT sandboxing to fix "setresuid (1: Operation not permitted)" errors
+if [ -d /etc/apt/apt.conf.d ]; then
+    echo 'APT::Sandbox::User "root";' > /etc/apt/apt.conf.d/99-root-sandbox
+fi
+
 export PS1="\[\e[38;5;46m\]\u\[\033[39m\]@xterm \[\033[39m\]\w \[\033[0m\]\\$ "
 # shellcheck disable=SC2034
 export PIP_BREAK_SYSTEM_PACKAGES=1
