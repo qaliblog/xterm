@@ -93,7 +93,7 @@ unset system_mnt
 ARGS="$ARGS -b /sdcard"
 ARGS="$ARGS -b /storage"
 ARGS="$ARGS -b /dev"
-ARGS="$ARGS -b /data"
+# ARGS="$ARGS -b /data" # Removed risky binding to avoid permission issues
 ARGS="$ARGS -b /dev/urandom:/dev/random"
 ARGS="$ARGS -b /proc"
 ARGS="$ARGS -b $PREFIX"

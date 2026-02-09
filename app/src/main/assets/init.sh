@@ -388,7 +388,7 @@ if [ "$#" -eq 0 ]; then
     source /etc/profile 2>/dev/null || true
     export PS1="\[\e[38;5;46m\]\u\[\033[39m\]@xterm \[\033[39m\]\w \[\033[0m\]\\$ "
     mkdir -p "$HOME" 2>/dev/null || true
-    cd "$HOME" || true
+    cd "$HOME" || cd / || true
     # Start fish shell if available, otherwise fall back to ash
     if command -v fish >/dev/null 2>&1; then
         # Ensure fish colors are set before starting

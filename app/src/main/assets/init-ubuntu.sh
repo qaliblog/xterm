@@ -22,6 +22,11 @@ export PS1="\[\e[38;5;46m\]\u\[\033[39m\]@xterm \[\033[39m\]\w \[\033[0m\]\\$ "
 # shellcheck disable=SC2034
 export PIP_BREAK_SYSTEM_PACKAGES=1
 export DEBIAN_FRONTEND=noninteractive
+export DEBCONF_NOWARNINGS=yes
+export APT_LISTCHANGES_FRONTEND=none
+
+# Ensure home directory exists
+mkdir -p "$HOME" 2>/dev/null || true
 
 # Quick function to aggressively remove stale locks (called before apt operations)
 quick_remove_stale_locks() {
@@ -267,43 +272,51 @@ safe_apt_get() {
     return 0
 }
 
-# Update package lists and upgrade system
-printf "\033[34;1m[*] \033[0mUpdating package lists\033[0m\n"
-safe_apt_get update -qq || true
+# Initial bootstrap (only once per rootfs)
+if [ ! -f "$HOME/.termos_bootstrapped" ]; then
+    printf "\033[34;1m[*] \033[0mInitial setup for first run...\033[0m\n"
 
-# Check and install essential packages
-required_packages="bash nano curl wget"
-missing_packages=""
-for pkg in $required_packages; do
-    if ! dpkg -l | grep -q "^ii.*$pkg "; then
-        missing_packages="$missing_packages $pkg"
-    fi
-done
-
-if [ -n "$missing_packages" ]; then
-    printf "\033[34;1m[*] \033[0mInstalling Important packages\033[0m\n"
+    # Update package lists and upgrade system
+    printf "\033[34;1m[*] \033[0mUpdating package lists\033[0m\n"
     safe_apt_get update -qq || true
-    safe_apt_get upgrade -y -qq || true
-    safe_apt_get install -y -qq $missing_packages
-    if [ $? -eq 0 ]; then
-        printf "\033[32;1m[+] \033[0mSuccessfully Installed\033[0m\n"
-    fi
-    printf "\033[34m[*] \033[0mUse \033[32mapt\033[0m to install new packages\033[0m\n"
-fi
 
-# Install fish shell if not already installed
-if ! command -v fish >/dev/null 2>&1; then
-    printf "\033[34;1m[*] \033[0mInstalling fish shell\033[0m\n"
-    safe_apt_get update -qq || true
-    safe_apt_get install -y -qq fish || true
-    if command -v fish >/dev/null 2>&1; then
-        printf "\033[32;1m[+] \033[0mFish shell installed\033[0m\n"
-    fi
-fi
+    # Check and install essential packages
+    required_packages="bash nano curl wget"
+    missing_packages=""
+    for pkg in $required_packages; do
+        if ! dpkg -l | grep -q "^ii.*$pkg "; then
+            missing_packages="$missing_packages $pkg"
+        fi
+    done
 
-# Install cron if not already installed
-if ! command -v cron >/dev/null 2>&1; then
-    safe_apt_get install -y -qq cron || true
+    if [ -n "$missing_packages" ]; then
+        printf "\033[34;1m[*] \033[0mInstalling Important packages\033[0m\n"
+        safe_apt_get update -qq || true
+        safe_apt_get upgrade -y -qq || true
+        safe_apt_get install -y -qq $missing_packages
+        if [ $? -eq 0 ]; then
+            printf "\033[32;1m[+] \033[0mSuccessfully Installed\033[0m\n"
+        fi
+        printf "\033[34m[*] \033[0mUse \033[32mapt\033[0m to install new packages\033[0m\n"
+    fi
+
+    # Install fish shell if not already installed
+    if ! command -v fish >/dev/null 2>&1; then
+        printf "\033[34;1m[*] \033[0mInstalling fish shell\033[0m\n"
+        safe_apt_get update -qq || true
+        safe_apt_get install -y -qq fish || true
+        if command -v fish >/dev/null 2>&1; then
+            printf "\033[32;1m[+] \033[0mFish shell installed\033[0m\n"
+        fi
+    fi
+
+    # Install cron if not already installed
+    if ! command -v cron >/dev/null 2>&1; then
+        safe_apt_get install -y -qq cron || true
+    fi
+
+    # Mark bootstrap as complete
+    touch "$HOME/.termos_bootstrapped" 2>/dev/null || true
 fi
 
 # Copy helper scripts if they exist in files directory
@@ -623,7 +636,7 @@ if [ "$#" -eq 0 ]; then
     source /etc/profile 2>/dev/null || true
     export PS1="\[\e[38;5;46m\]\u\[\033[39m\]@xterm \[\033[39m\]\w \[\033[0m\]\\$ "
     mkdir -p "$HOME" 2>/dev/null || true
-    cd "$HOME" || true
+    cd "$HOME" || cd / || true
     # Start fish shell if available, otherwise fall back to bash
     if command -v fish >/dev/null 2>&1; then
         # Ensure fish colors are set before starting
