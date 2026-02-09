@@ -332,8 +332,18 @@ task downloadBootstraps() {
     }
 }
 
+task downloadKeyrings() {
+    doLast {
+        // Download official keyrings for trusted repository validation
+        downloadAsset("http://archive.ubuntu.com/ubuntu/project/ubuntu-archive-keyring.gpg", "src/main/assets/keyrings/ubuntu-archive-keyring.gpg", "80a36b0a6de2f69f49d2df75ef473ccde121e9e190b9ea01d20a4f63778d5c31")
+        downloadAsset("https://ftp-master.debian.org/keys/archive-key-12.asc", "src/main/assets/keyrings/debian-archive-keyring.asc", "c2a9a16fde95e037bafd0fa6b7e31f41b4ff1e85851de5558f19a2a2f0e955e2")
+        downloadAsset("https://archive.kali.org/archive-keyring.gpg", "src/main/assets/keyrings/kali-archive-keyring.gpg", "42a247ff5a26869e3739b6d3ad125938bb5da8e7bb43ed0791d2a190cd09c64f")
+    }
+}
+
 afterEvaluate {
     android.applicationVariants.all { variant ->
         variant.javaCompileProvider.get().dependsOn(downloadBootstraps)
+        variant.javaCompileProvider.get().dependsOn(downloadKeyrings)
     }
 }

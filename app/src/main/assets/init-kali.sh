@@ -278,6 +278,17 @@ safe_apt_get() {
 if [ ! -f "$HOME/.termos_bootstrapped" ]; then
     printf "\033[34;1m[*] \033[0mInitial setup for first run...\033[0m\n"
 
+    # Setup official keyring for trusted repository validation
+    KEYRING_DEST="/usr/share/keyrings/kali-archive-keyring.gpg"
+    mkdir -p "$(dirname "$KEYRING_DEST")" 2>/dev/null || true
+    if [ -f "$PREFIX/files/keyrings/kali-archive-keyring.gpg" ]; then
+        cp "$PREFIX/files/keyrings/kali-archive-keyring.gpg" "$KEYRING_DEST"
+        # Update sources.list to use the keyring
+        if [ -f /etc/apt/sources.list ]; then
+            sed -i "s|http://http.kali.org/kali|[signed-by=$KEYRING_DEST] http://http.kali.org/kali|g" /etc/apt/sources.list
+        fi
+    fi
+
     # Update package lists and upgrade system
     printf "\033[34;1m[*] \033[0mUpdating package lists\033[0m\n"
     safe_apt_get update -qq || true
