@@ -239,11 +239,14 @@ safe_apt_get() {
                 2> "$stderr_file" || exit_code=$?
         elif [ "$cmd" = "install" ] || [ "$cmd" = "upgrade" ] || [ "$cmd" = "dist-upgrade" ]; then
             # Retry install/upgrade with all requested bypass flags
+            # Note: --allow-insecure-repositories is not always understood as a flag, so we use -o
             apt-get "$@" \
                 --allow-unauthenticated \
-                --allow-insecure-repositories \
                 --fix-missing \
                 -o Acquire::Retries=5 \
+                -o Acquire::AllowInsecureRepositories=true \
+                -o Acquire::AllowDowngradeToInsecureRepositories=true \
+                -o APT::Get::AllowUnauthenticated=true \
                 2> "$stderr_file" || exit_code=$?
         fi
     fi
@@ -539,9 +542,9 @@ if ! pgrep -x cron >/dev/null 2>&1; then
     fi
 fi
 
-if [[ ! -f /linkerconfig/ld.config.txt ]];then
-    mkdir -p /linkerconfig
-    touch /linkerconfig/ld.config.txt
+if [ ! -f /linkerconfig/ld.config.txt ]; then
+    mkdir -p /linkerconfig 2>/dev/null || true
+    touch /linkerconfig/ld.config.txt 2>/dev/null || true
 fi
 
 if [ -f /etc/group ]; then
@@ -555,7 +558,8 @@ fi
 if [ "$#" -eq 0 ]; then
     source /etc/profile 2>/dev/null || true
     export PS1="\[\e[38;5;46m\]\u\[\033[39m\]@xterm \[\033[39m\]\w \[\033[0m\]\\$ "
-    cd $HOME
+    mkdir -p "$HOME" 2>/dev/null || true
+    cd "$HOME" || true
     # Start fish shell if available, otherwise fall back to bash
     if command -v fish >/dev/null 2>&1; then
         # Ensure fish colors are set before starting
