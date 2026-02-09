@@ -40,13 +40,16 @@ public class RootfsManager {
      * Check if rootfs files are downloaded and installed
      */
     public boolean isRootfsInstalled() {
-        File proot = new File(rootfsDir, "proot");
-        File libtalloc = new File(rootfsDir, "libtalloc.so.2");
+        File proot = new File(rootfsDir, "bin/proot");
+        if (!proot.exists()) proot = new File(rootfsDir.getParentFile(), "local/bin/proot");
+
+        File libtalloc = new File(rootfsDir, "bin/libtalloc.so.2");
+        if (!libtalloc.exists()) libtalloc = new File(rootfsDir.getParentFile(), "local/lib/libtalloc.so.2");
+
         List<String> installedRootfs = getInstalledRootfs();
 
         return rootfsDir.exists() &&
                proot.exists() &&
-               libtalloc.exists() &&
                !installedRootfs.isEmpty();
     }
 
@@ -54,21 +57,36 @@ public class RootfsManager {
      * Get list of installed rootfs files from disk
      */
     public List<String> getInstalledRootfs() {
-        if (!rootfsDir.exists()) {
-            return new ArrayList<>();
-        }
-
-        File[] files = rootfsDir.listFiles();
-        if (files == null) {
-            return new ArrayList<>();
-        }
-
         List<String> result = new ArrayList<>();
-        for (File file : files) {
-            if (file.isFile() && (file.getName().endsWith(".tar.gz") || file.getName().endsWith(".tar"))) {
-                result.add(file.getName());
+
+        // Check local/ directory for extracted rootfs
+        File localDir = new File(rootfsDir.getParentFile(), "local");
+        if (localDir.exists()) {
+            File[] dirs = localDir.listFiles();
+            if (dirs != null) {
+                for (File dir : dirs) {
+                    if (dir.isDirectory() && !dir.getName().equals("bin") && !dir.getName().equals("lib") && !dir.getName().equals("tmp")) {
+                        // Found an extracted rootfs directory
+                        result.add(dir.getName() + ".tar.gz");
+                    }
+                }
             }
         }
+
+        // Also check filesDir for tarballs (original behavior)
+        if (rootfsDir.exists()) {
+            File[] files = rootfsDir.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    if (file.isFile() && (file.getName().endsWith(".tar.gz") || file.getName().endsWith(".tar"))) {
+                        if (!result.contains(file.getName())) {
+                            result.add(file.getName());
+                        }
+                    }
+                }
+            }
+        }
+
         return result;
     }
 

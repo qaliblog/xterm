@@ -224,6 +224,12 @@ public class LinuxSessionCreator {
         env.add("PREFIX=" + filesDir.getParentFile().getAbsolutePath());
         env.add("LD_LIBRARY_PATH=" + localLibDir.getAbsolutePath());
 
+        // Ensure proot doesn't use seccomp on modern Android where it causes ENOSYS
+        env.add("PROOT_NO_SECCOMP=1");
+        env.add("PROOT_SECCOMP=0");
+        env.add("PROOT_NO_HARDLINKS=1");
+        env.add("PROOT_FORCE_PTRACE_TRACEME=1");
+
         // Determine linker
         File linker64 = new File("/system/bin/linker64");
         String linker = linker64.exists() ? "/system/bin/linker64" : "/system/bin/linker";

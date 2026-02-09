@@ -201,7 +201,11 @@ public final class TermuxInstaller {
         }
 
         // Install common scripts
-        String[] commonScripts = {"init-host.sh", "init.sh", "update-fish-colors.sh"};
+        String[] commonScripts = {
+            "init-host.sh", "init-host-ubuntu.sh", "init.sh",
+            "init-ubuntu.sh", "init-debian.sh", "init-arch.sh", "init-kali.sh",
+            "update-fish-colors.sh"
+        };
         for (String script : commonScripts) {
             try {
                 File outFile = new File(binDir, script);

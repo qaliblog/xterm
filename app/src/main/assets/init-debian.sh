@@ -2,78 +2,63 @@ set -e  # Exit immediately on Failure
 
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/share/bin:/usr/share/sbin:/usr/local/bin:/usr/local/sbin:/system/bin:/system/xbin:$PREFIX/local/bin
 export HOME=/root
-
 # Set hostname to avoid issues with commands that require it
-if ! hostname >/dev/null 2>&1 || [ -z "$(hostname 2>/dev/null)" ] || [ "$(hostname)" = "(none)" ]; then
+if ! hostname >/dev/null 2>&1 || [ -z "$(hostname 2>/dev/null)" ]; then
     hostname localhost 2>/dev/null || true
     export HOSTNAME=localhost
-fi
-
-# Ensure /etc/hosts has localhost entry
-if [ -w /etc ]; then
-    if [ ! -f /etc/hosts ] || ! grep -q "127.0.0.1.*localhost" /etc/hosts 2>/dev/null; then
-        echo "127.0.0.1 localhost" >> /etc/hosts 2>/dev/null || true
-    fi
 fi
 
 if [ ! -s /etc/resolv.conf ]; then
     echo "nameserver 8.8.8.8" > /etc/resolv.conf
 fi
 
-
 export PS1="\[\e[38;5;46m\]\u\[\033[39m\]@xterm \[\033[39m\]\w \[\033[0m\]\\$ "
 # shellcheck disable=SC2034
 export PIP_BREAK_SYSTEM_PACKAGES=1
-required_packages="bash gcompat glib nano"
+export DEBIAN_FRONTEND=noninteractive
+
+# Update package lists and upgrade system
+if [ ! -f /var/lib/apt/lists/lock ]; then
+    echo -e "\e[34;1m[*] \e[0mUpdating package lists\e[0m"
+    apt-get update -qq || true
+fi
+
+# Check and install essential packages
+required_packages="bash nano curl wget"
 missing_packages=""
 for pkg in $required_packages; do
-    if ! apk info -e $pkg >/dev/null 2>&1; then
+    if ! dpkg -l | grep -q "^ii.*$pkg "; then
         missing_packages="$missing_packages $pkg"
     fi
 done
+
 if [ -n "$missing_packages" ]; then
     echo -e "\e[34;1m[*] \e[0mInstalling Important packages\e[0m"
-    apk update && apk upgrade
-    apk add $missing_packages
+    apt-get update -qq
+    apt-get upgrade -y -qq || true
+    apt-get install -y -qq $missing_packages
     if [ $? -eq 0 ]; then
         echo -e "\e[32;1m[+] \e[0mSuccessfully Installed\e[0m"
     fi
-    echo -e "\e[34m[*] \e[0mUse \e[32mapk\e[0m to install new packages\e[0m"
+    echo -e "\e[34m[*] \e[0mUse \e[32mapt\e[0m to install new packages\e[0m"
 fi
 
 # Install fish shell if not already installed
 if ! command -v fish >/dev/null 2>&1; then
     echo -e "\e[34;1m[*] \e[0mInstalling fish shell\e[0m"
-    apk add fish 2>/dev/null || true
+    apt-get update -qq
+    apt-get install -y -qq fish 2>/dev/null || true
     if command -v fish >/dev/null 2>&1; then
         echo -e "\e[32;1m[+] \e[0mFish shell installed\e[0m"
     fi
 fi
 
 # Install cron if not already installed
-if ! command -v crond >/dev/null 2>&1; then
-    apk add dcron 2>/dev/null || true
+if ! command -v cron >/dev/null 2>&1; then
+    apt-get install -y -qq cron 2>/dev/null || true
 fi
 
-# Copy mount-proc helper script if it exists
-if [ -f "$PREFIX/local/bin/mount-proc.sh" ]; then
-    chmod +x "$PREFIX/local/bin/mount-proc.sh" 2>/dev/null || true
-elif [ -f "$PREFIX/files/mount-proc.sh" ]; then
-    mkdir -p "$PREFIX/local/bin" 2>/dev/null || true
-    cp "$PREFIX/files/mount-proc.sh" "$PREFIX/local/bin/mount-proc.sh" 2>/dev/null || true
-    chmod +x "$PREFIX/local/bin/mount-proc.sh" 2>/dev/null || true
-fi
-
-# Copy install-lomiri helper script if it exists
-if [ -f "$PREFIX/local/bin/install-lomiri.sh" ]; then
-    chmod +x "$PREFIX/local/bin/install-lomiri.sh" 2>/dev/null || true
-elif [ -f "$PREFIX/files/install-lomiri.sh" ]; then
-    mkdir -p "$PREFIX/local/bin" 2>/dev/null || true
-    cp "$PREFIX/files/install-lomiri.sh" "$PREFIX/local/bin/install-lomiri.sh" 2>/dev/null || true
-    chmod +x "$PREFIX/local/bin/install-lomiri.sh" 2>/dev/null || true
-fi
-
-# Create termos-setup-storage command
+# Create termos-setup-storage command (same script for all distros)
 if [ ! -f "$PREFIX/local/bin/termos-setup-storage" ]; then
     mkdir -p "$PREFIX/local/bin" 2>/dev/null || true
     cat > "$PREFIX/local/bin/termos-setup-storage" << 'STORAGEEOF'
@@ -204,52 +189,29 @@ STORAGEEOF
     chmod +x "$PREFIX/local/bin/termos-setup-storage" 2>/dev/null || true
 fi
 
-# Copy fish color update script
+# Copy fish color update script (same as Ubuntu)
 if [ -f "$PREFIX/local/bin/update-fish-colors.sh" ]; then
-    # Script already exists, just make it executable
     chmod +x "$PREFIX/local/bin/update-fish-colors.sh" 2>/dev/null || true
 else
-    # Create the script
     mkdir -p "$PREFIX/local/bin" 2>/dev/null || true
     cat > "$PREFIX/local/bin/update-fish-colors.sh" << 'SCRIPTEOF'
 #!/bin/sh
-# Script to update fish shell colors based on app theme
-# This script reads the Android app's SharedPreferences to detect theme
-
-# Paths to check for SharedPreferences
 PREF_PATHS="/data/data/com.xterm/shared_prefs/Settings.xml /data/data/com.xterm.debug/shared_prefs/Settings.xml"
-
-# Default to dark theme if we can't detect
 IS_DARK_MODE=1
-
-# Try to read the theme setting from SharedPreferences
 for PREF_PATH in $PREF_PATHS; do
     if [ -f "$PREF_PATH" ]; then
-        # Read default_night_mode value (MODE_NIGHT_YES=2, MODE_NIGHT_NO=1, MODE_NIGHT_FOLLOW_SYSTEM=0)
         NIGHT_MODE=$(grep -o 'name="default_night_mode"[^>]*>\([0-9]*\)</int>' "$PREF_PATH" 2>/dev/null | grep -o '[0-9]*' | tail -1)
         if [ -n "$NIGHT_MODE" ]; then
-            # MODE_NIGHT_YES = 2 (dark), MODE_NIGHT_NO = 1 (light), MODE_NIGHT_FOLLOW_SYSTEM = 0
-            if [ "$NIGHT_MODE" = "2" ]; then
-                IS_DARK_MODE=1
-            elif [ "$NIGHT_MODE" = "1" ]; then
-                IS_DARK_MODE=0
-            else
-                # MODE_NIGHT_FOLLOW_SYSTEM - try to detect system theme
-                IS_DARK_MODE=1  # Default to dark
-            fi
+            if [ "$NIGHT_MODE" = "2" ]; then IS_DARK_MODE=1
+            elif [ "$NIGHT_MODE" = "1" ]; then IS_DARK_MODE=0
+            else IS_DARK_MODE=1; fi
             break
         fi
     fi
 done
-
-# Create fish config directory if it doesn't exist
 mkdir -p ~/.config/fish 2>/dev/null || true
-
-# Update fish colors based on theme
 if [ "$IS_DARK_MODE" = "1" ]; then
-    # Dark theme: Use light colors
     cat > ~/.config/fish/config.fish << 'FISHDARK'
-# Fish shell configuration for dark theme (light colors)
 set -g fish_color_normal white
 set -g fish_color_command cyan
 set -g fish_color_quote yellow
@@ -277,9 +239,7 @@ set -g fish_pager_color_prefix white --bold --underline
 set -g fish_pager_color_progress brwhite --background=cyan
 FISHDARK
 else
-    # Light theme: Use dark colors
     cat > ~/.config/fish/config.fish << 'FISHLIGHT'
-# Fish shell configuration for light theme (dark colors)
 set -g fish_color_normal black
 set -g fish_color_command blue
 set -g fish_color_quote yellow
@@ -307,75 +267,39 @@ set -g fish_pager_color_prefix black --bold --underline
 set -g fish_pager_color_progress brblack --background=cyan
 FISHLIGHT
 fi
-
-# Make script executable
 chmod +x ~/.config/fish/config.fish 2>/dev/null || true
 SCRIPTEOF
     chmod +x "$PREFIX/local/bin/update-fish-colors.sh" 2>/dev/null || true
 fi
 
-# Run the script once to set initial colors immediately
 "$PREFIX/local/bin/update-fish-colors.sh" 2>/dev/null || true
 
 # Setup storage access (creates /sdcard symlink)
 "$PREFIX/local/bin/termos-setup-storage" 2>/dev/null || true
 
-# Add to crontab to run every minute (checks for theme changes in new tabs)
 (crontab -l 2>/dev/null | grep -v "update-fish-colors.sh"; echo "* * * * * $PREFIX/local/bin/update-fish-colors.sh >/dev/null 2>&1") | crontab - 2>/dev/null || true
 
-# Start cron daemon if not running
-if ! pgrep -x crond >/dev/null 2>&1; then
-    # Try to start crond with proper flags
-    # -b: run in background
-    # -S: send output to syslog (if available)
-    # -l 0: log level 0 (minimal logging)
-    crond -b -S -l 0 >/dev/null 2>&1 &
+if ! pgrep -x cron >/dev/null 2>&1; then
+    if command -v service >/dev/null 2>&1; then
+        service cron start 2>/dev/null || true
+    elif [ -f /etc/init.d/cron ]; then
+        /etc/init.d/cron start 2>/dev/null || true
+    elif [ -f /usr/sbin/cron ]; then
+        /usr/sbin/cron 2>/dev/null || true
+    fi
     sleep 1
-    if pgrep -x crond >/dev/null 2>&1; then
+    if pgrep -x cron >/dev/null 2>&1; then
         echo -e "\e[32;1m[+] \e[0mCron daemon started\e[0m"
     else
-        # Try alternative method: run in foreground in background using nohup
-        nohup crond -f -l 0 >/dev/null 2>&1 &
-        sleep 1
-        if pgrep -x crond >/dev/null 2>&1; then
-            echo -e "\e[32;1m[+] \e[0mCron daemon started (alternative method)\e[0m"
-        else
-            # Final fallback: try simple background start without flags
-            crond >/dev/null 2>&1 &
-            sleep 1
-            if pgrep -x crond >/dev/null 2>&1; then
-                echo -e "\e[32;1m[+] \e[0mCron daemon started (fallback method)\e[0m"
-            else
-                echo -e "\e[33;1m[!] \e[0mWarning: Failed to start cron daemon (fish theme updates may not work automatically)\e[0m"
-                echo -e "\e[33;1m[!] \e[0mYou can manually run: $PREFIX/local/bin/update-fish-colors.sh\e[0m"
-            fi
-        fi
+        echo -e "\e[33;1m[!] \e[0mWarning: Failed to start cron daemon\e[0m"
     fi
 fi
 
-# Mount /proc if not already mounted (required for many system operations)
-if ! mountpoint -q /proc 2>/dev/null; then
-    # Try to mount /proc from host system
-    if [ -d /proc ] && [ -r /proc/version ] 2>/dev/null; then
-        # /proc exists on host, try to bind mount it
-        mount --bind /proc /proc 2>/dev/null || true
-    else
-        # If /proc doesn't exist on host, create a minimal proc mount
-        # This is a fallback - ideally /proc should be bind-mounted by PRoot
-        if ! mount -t proc proc /proc 2>/dev/null; then
-            # If mount fails, at least create the directory structure
-            mkdir -p /proc 2>/dev/null || true
-        fi
-    fi
-fi
-
-#fix linker warning
-if [ ! -f /linkerconfig/ld.config.txt ]; then
+if [[ ! -f /linkerconfig/ld.config.txt ]];then
     mkdir -p /linkerconfig
     touch /linkerconfig/ld.config.txt
 fi
 
-# Fix group warnings by adding missing group entries
 if [ -f /etc/group ]; then
     for gid in 3003 9997 20609 20610 50609 50610 99909997; do
         if ! grep -q "^[^:]*:[^:]*:$gid:" /etc/group 2>/dev/null; then
@@ -385,16 +309,16 @@ if [ -f /etc/group ]; then
 fi
 
 if [ "$#" -eq 0 ]; then
-    source /etc/profile
+    source /etc/profile 2>/dev/null || true
     export PS1="\[\e[38;5;46m\]\u\[\033[39m\]@xterm \[\033[39m\]\w \[\033[0m\]\\$ "
     cd $HOME
-    # Start fish shell if available, otherwise fall back to ash
+    # Start fish shell if available, otherwise fall back to bash
     if command -v fish >/dev/null 2>&1; then
         # Ensure fish colors are set before starting
         "$PREFIX/local/bin/update-fish-colors.sh" 2>/dev/null || true
         exec fish
     else
-        /bin/ash
+        /bin/bash
     fi
 else
     exec "$@"

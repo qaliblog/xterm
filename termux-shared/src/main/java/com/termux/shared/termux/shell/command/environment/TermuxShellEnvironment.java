@@ -97,9 +97,9 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         }
 
         environment.put("PROOT_TMP_DIR", filesDir + "/tmp");
-        // Following termos, we don't disable seccomp by default unless troubleshooting
-        // environment.put("PROOT_NO_SECCOMP", "1");
-        // environment.put("PROOT_SECCOMP", "0");
+        // Ensure proot doesn't use seccomp on modern Android where it causes ENOSYS
+        environment.put("PROOT_NO_SECCOMP", "1");
+        environment.put("PROOT_SECCOMP", "0");
         environment.put("PROOT_NO_HARDLINKS", "1");
         environment.put("PROOT_LOADER", "");
         environment.put("PROOT_LOADER32", "");
@@ -115,6 +115,12 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
                 String bundlePath = preferences.getRootfsBundleLocalPath();
                 if (bundlePath != null) {
                     environment.put("ROOTFS_BUNDLE_PATH", bundlePath);
+                }
+
+                String osType = preferences.getRootfsOsType();
+                if (osType != null) {
+                    environment.put("ROOTFS_DIR", osType);
+                    environment.put("ROOTFS_FILE", osType + ".tar.gz");
                 }
             }
         }
