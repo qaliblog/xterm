@@ -12,6 +12,21 @@ if [ -z "$ROOTFS_DIR" ] || [ "$ROOTFS_DIR" = "ubuntu" ]; then
     fi
 fi
 
+# If ROOTFS_DIR is set to ubuntu but it doesn't exist, try to find another one
+if [ "$ROOTFS_DIR" = "ubuntu" ] && [ ! -d "$PREFIX/local/ubuntu" ]; then
+    # Look for any directory in local/ that is not bin, lib, or tmp
+    for d in "$PREFIX/local/"*; do
+        if [ -d "$d" ]; then
+            base=$(basename "$d")
+            if [ "$base" != "bin" ] && [ "$base" != "lib" ] && [ "$base" != "tmp" ]; then
+                ROOTFS_DIR="$base"
+                ROOTFS_FILE="$base.tar.gz"
+                break
+            fi
+        fi
+    done
+fi
+
 ROOTFS_DIR_PATH="$PREFIX/local/$ROOTFS_DIR"
 
 mkdir -p "$ROOTFS_DIR_PATH"
@@ -54,6 +69,7 @@ if [ ! -e "$PREFIX/local/bin/proot" ]; then
 fi
 
 for sofile in "$PREFIX/files/"*.so.2; do
+    [ -e "$sofile" ] || continue
     dest="$PREFIX/local/lib/$(basename "$sofile")"
     [ ! -e "$dest" ] && cp "$sofile" "$dest"
 done
@@ -91,9 +107,13 @@ if [ ! -f "$PREFIX/local/vmstat" ]; then
     # Create a minimal vmstat file (just to avoid binding error)
     echo "nr_free_pages 0" > "$PREFIX/local/vmstat" 2>/dev/null || true
 fi
+if [ ! -f "$PREFIX/local/fips_enabled" ]; then
+    echo "0" > "$PREFIX/local/fips_enabled" 2>/dev/null || true
+fi
 # Only bind if files exist
 [ -f "$PREFIX/local/stat" ] && ARGS="$ARGS -b $PREFIX/local/stat:/proc/stat"
 [ -f "$PREFIX/local/vmstat" ] && ARGS="$ARGS -b $PREFIX/local/vmstat:/proc/vmstat"
+[ -f "$PREFIX/local/fips_enabled" ] && ARGS="$ARGS -b $PREFIX/local/fips_enabled:/proc/sys/crypto/fips_enabled"
 
 if [ -e "/proc/self/fd" ]; then
   ARGS="$ARGS -b /proc/self/fd:/dev/fd"
