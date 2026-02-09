@@ -242,6 +242,7 @@ safe_apt_get() {
                 -o Acquire::AllowInsecureRepositories=true \
                 -o Acquire::AllowDowngradeToInsecureRepositories=true \
                 -o Acquire::Check-Valid-Until=false \
+                -o APT::Get::AllowUnauthenticated=true \
                 2> "$stderr_file" || exit_code=$?
         elif [ "$cmd" = "install" ] || [ "$cmd" = "upgrade" ] || [ "$cmd" = "dist-upgrade" ]; then
             # Retry install/upgrade with all requested bypass flags

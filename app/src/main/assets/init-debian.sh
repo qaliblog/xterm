@@ -241,6 +241,7 @@ safe_apt_get() {
                 -o Acquire::AllowInsecureRepositories=true \
                 -o Acquire::AllowDowngradeToInsecureRepositories=true \
                 -o Acquire::Check-Valid-Until=false \
+                -o APT::Get::AllowUnauthenticated=true \
                 2> "$stderr_file" || exit_code=$?
         elif [ "$cmd" = "install" ] || [ "$cmd" = "upgrade" ] || [ "$cmd" = "dist-upgrade" ]; then
             # Retry install/upgrade with all requested bypass flags
@@ -584,7 +585,9 @@ if [ "$#" -eq 0 ]; then
     source /etc/profile 2>/dev/null || true
     export PS1="\[\e[38;5;46m\]\u\[\033[39m\]@xterm \[\033[39m\]\w \[\033[0m\]\\$ "
     mkdir -p "$HOME" 2>/dev/null || true
-    cd "$HOME" || cd / || true
+    if ! cd "$HOME" 2>/dev/null; then
+        cd / 2>/dev/null || true
+    fi
     # Start fish shell if available, otherwise fall back to bash
     if command -v fish >/dev/null 2>&1; then
         # Ensure fish colors are set before starting

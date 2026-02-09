@@ -1,6 +1,8 @@
 # Ensure proot doesn't use seccomp on modern Android where it causes ENOSYS
 export PROOT_NO_SECCOMP=1
 export PROOT_SECCOMP=0
+export PROOT_FORCE_PTRACE_TRACEME=1
+export PROOT_NO_HARDLINKS=1
 
 # Determine rootfs file and directory from environment or defaults
 ROOTFS_FILE="${ROOTFS_FILE:-ubuntu.tar.gz}"
