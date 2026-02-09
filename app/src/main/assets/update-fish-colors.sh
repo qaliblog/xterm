@@ -3,7 +3,7 @@
 # This script reads the Android app's SharedPreferences to detect theme
 
 # Paths to check for SharedPreferences
-PREF_PATHS="/data/data/com.qali.aterm/shared_prefs/Settings.xml /data/data/com.qali.aterm.debug/shared_prefs/Settings.xml"
+PREF_PATHS="/data/data/com.xterm/shared_prefs/Settings.xml /data/user/0/com.xterm/shared_prefs/Settings.xml"
 
 # Default to dark theme if we can't detect
 IS_DARK_MODE=1
@@ -21,7 +21,6 @@ for PREF_PATH in $PREF_PATHS; do
                 IS_DARK_MODE=0
             else
                 # MODE_NIGHT_FOLLOW_SYSTEM - try to detect system theme
-                # This is a simple heuristic - in practice, you might want to check system settings
                 IS_DARK_MODE=1  # Default to dark
             fi
             break

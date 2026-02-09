@@ -85,6 +85,7 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         environment.put(ENV_HOME, filesDir + "/home");
         environment.put(ENV_PREFIX, filesDir + "/usr");
         environment.put(ENV_TMPDIR, filesDir + "/tmp");
+        environment.put("FILES_DIR", filesDir);
 
         // Ensure host PATH includes app's bin directory for proot
         String appBinDir = filesDir + "/bin";
@@ -96,6 +97,7 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         }
 
         environment.put("PROOT_TMP_DIR", filesDir + "/tmp");
+        // Ensure proot doesn't use seccomp on modern Android where it causes ENOSYS
         environment.put("PROOT_NO_SECCOMP", "1");
         environment.put("PROOT_SECCOMP", "0");
         environment.put("PROOT_NO_HARDLINKS", "1");
@@ -103,16 +105,33 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         environment.put("PROOT_LOADER32", "");
         environment.put("PROOT_FORCE_PTRACE_TRACEME", "1");
 
+        // Set linker path
+        File linker64 = new File("/system/bin/linker64");
+        environment.put("LINKER", linker64.exists() ? "/system/bin/linker64" : "/system/bin/linker");
+
         if (isRootfsInstalled) {
             environment.remove("LD_PRELOAD");
+            if (preferences != null) {
+                String bundlePath = preferences.getRootfsBundleLocalPath();
+                if (bundlePath != null) {
+                    environment.put("ROOTFS_BUNDLE_PATH", bundlePath);
+                }
+
+                String osType = preferences.getRootfsOsType();
+                if (osType != null) {
+                    environment.put("ROOTFS_DIR", osType);
+                    environment.put("ROOTFS_FILE", osType + ".tar.gz");
+                }
+            }
         }
 
-        // Always add app bin dir to LD_LIBRARY_PATH to support proot and its libraries
+        // Add app's local lib dir to LD_LIBRARY_PATH to support proot and its libraries
+        String localLibDir = new File(filesDir).getParent() + "/local/lib";
         String currentLdLibraryPath = environment.get(ENV_LD_LIBRARY_PATH);
         if (currentLdLibraryPath == null) {
-            environment.put(ENV_LD_LIBRARY_PATH, appBinDir);
-        } else if (!currentLdLibraryPath.contains(appBinDir)) {
-            environment.put(ENV_LD_LIBRARY_PATH, appBinDir + ":" + currentLdLibraryPath);
+            environment.put(ENV_LD_LIBRARY_PATH, localLibDir + ":" + appBinDir);
+        } else if (!currentLdLibraryPath.contains(localLibDir)) {
+            environment.put(ENV_LD_LIBRARY_PATH, localLibDir + ":" + appBinDir + ":" + currentLdLibraryPath);
         }
 
         return environment;

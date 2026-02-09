@@ -285,35 +285,35 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
 
 
     public boolean isRootfsInstalled() {
-        return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_INSTALLED, TERMUX_APP.DEFAULT_VALUE_ROOTFS_INSTALLED);
+        return SharedPreferenceUtils.getBoolean(mMultiProcessSharedPreferences, TERMUX_APP.KEY_ROOTFS_INSTALLED, TERMUX_APP.DEFAULT_VALUE_ROOTFS_INSTALLED);
     }
 
     public void setRootfsInstalled(boolean value) {
-        SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_INSTALLED, value, false);
+        SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_INSTALLED, value, true);
     }
 
     public String getRootfsOsType() {
-        return SharedPreferenceUtils.getString(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_OS_TYPE, TERMUX_APP.DEFAULT_VALUE_ROOTFS_OS_TYPE, false);
+        return SharedPreferenceUtils.getString(mMultiProcessSharedPreferences, TERMUX_APP.KEY_ROOTFS_OS_TYPE, TERMUX_APP.DEFAULT_VALUE_ROOTFS_OS_TYPE, true);
     }
 
     public void setRootfsOsType(String value) {
-        SharedPreferenceUtils.setString(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_OS_TYPE, value, false);
+        SharedPreferenceUtils.setString(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_OS_TYPE, value, true);
     }
 
     public String getRootfsBundleUrl() {
-        return SharedPreferenceUtils.getString(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_BUNDLE_URL, null, false);
+        return SharedPreferenceUtils.getString(mMultiProcessSharedPreferences, TERMUX_APP.KEY_ROOTFS_BUNDLE_URL, null, true);
     }
 
     public void setRootfsBundleUrl(String value) {
-        SharedPreferenceUtils.setString(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_BUNDLE_URL, value, false);
+        SharedPreferenceUtils.setString(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_BUNDLE_URL, value, true);
     }
 
     public String getRootfsBundleLocalPath() {
-        return SharedPreferenceUtils.getString(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_BUNDLE_LOCAL_PATH, null, false);
+        return SharedPreferenceUtils.getString(mMultiProcessSharedPreferences, TERMUX_APP.KEY_ROOTFS_BUNDLE_LOCAL_PATH, null, true);
     }
 
     public void setRootfsBundleLocalPath(String value) {
-        SharedPreferenceUtils.setString(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_BUNDLE_LOCAL_PATH, value, false);
+        SharedPreferenceUtils.setString(mSharedPreferences, TERMUX_APP.KEY_ROOTFS_BUNDLE_LOCAL_PATH, value, true);
     }
 
 }

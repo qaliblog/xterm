@@ -11,6 +11,7 @@ import android.system.Os;
 
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.xterm.R;
+import com.xterm.app.linuxruntime.RootfsManager;
 import com.termux.shared.file.FileUtils;
 import com.termux.shared.termux.crash.TermuxCrashUtils;
 import com.termux.shared.termux.file.TermuxFileUtils;
@@ -60,11 +61,17 @@ public final class TermuxInstaller {
                     if (preferences == null) return;
 
                     File filesDir = activity.getFilesDir();
+                    File localDir = new File(filesDir.getParentFile(), "local");
                     if (!filesDir.exists()) filesDir.mkdirs();
+                    if (!localDir.exists()) localDir.mkdirs();
 
-                    File rootfsDir = new File(filesDir, "rootfs");
+                    // Determine rootfs directory name based on OS type
+                    String osType = preferences.getRootfsOsType();
+                    if (osType == null) osType = "alpine";
+                    File rootfsDir = new File(localDir, osType);
+
                     Logger.logInfo(LOG_TAG, "Preparing rootfs directory at " + rootfsDir.getAbsolutePath());
-                    FileUtils.clearDirectory("rootfs", rootfsDir.getAbsolutePath());
+                    FileUtils.clearDirectory(osType, rootfsDir.getAbsolutePath());
                     if (!rootfsDir.exists()) rootfsDir.mkdirs();
                     try { Os.chmod(rootfsDir.getAbsolutePath(), 0755); } catch (Exception e) {}
 
@@ -98,6 +105,38 @@ public final class TermuxInstaller {
                         throw new Exception("Rootfs extraction produced no files.");
                     }
                     Logger.logInfo(LOG_TAG, "Rootfs extraction completed. Items in rootfs: " + contents.length);
+
+                    // Copy proot and libs to local as expected by init-host
+                    File localBinDir = new File(localDir, "bin");
+                    File localLibDir = new File(localDir, "lib");
+                    localBinDir.mkdirs();
+                    localLibDir.mkdirs();
+
+                    File prootInFiles = new File(filesDir, "bin/proot");
+                    if (prootInFiles.exists()) {
+                        File prootInLocal = new File(localBinDir, "proot");
+                        FileUtils.copyFile("proot", prootInFiles.getAbsolutePath(), prootInLocal.getAbsolutePath(), true);
+                        prootInLocal.setExecutable(true);
+                    }
+
+                    File[] binFiles = new File(filesDir, "bin").listFiles();
+                    if (binFiles != null) {
+                        for (File f : binFiles) {
+                            if (f.getName().contains(".so")) {
+                                File dest = new File(localLibDir, f.getName());
+                                FileUtils.copyFile(f.getName(), f.getAbsolutePath(), dest.getAbsolutePath(), true);
+                            }
+                        }
+                    }
+
+                    // Register with RootfsManager
+                    RootfsManager rootfsManager = new RootfsManager(activity);
+                    String rootfsFileName = osType + ".tar.gz"; // Standardized name
+                    int workingMode = osType.equals("alpine") ? 0 : 2;
+
+                    rootfsManager.markRootfsInstalled(rootfsFileName, osType.substring(0, 1).toUpperCase() + osType.substring(1));
+                    rootfsManager.setRootfsFileForWorkingMode(workingMode, rootfsFileName);
+                    rootfsManager.setRootfsDistroType(rootfsFileName, osType.toUpperCase());
 
                     preferences.setRootfsInstalled(true);
                     activity.runOnUiThread(whenDone);
@@ -158,6 +197,30 @@ public final class TermuxInstaller {
                     }
                 }
                 Os.chmod(outFile.getAbsolutePath(), 0755);
+            }
+        }
+
+        // Install common scripts
+        String[] commonScripts = {
+            "init-host.sh", "init-host-ubuntu.sh", "init.sh",
+            "init-ubuntu.sh", "init-debian.sh", "init-arch.sh", "init-kali.sh",
+            "update-fish-colors.sh"
+        };
+        for (String script : commonScripts) {
+            try {
+                File outFile = new File(binDir, script);
+                try (java.io.InputStream in = context.getAssets().open(script);
+                     java.io.FileOutputStream out = new java.io.FileOutputStream(outFile)) {
+                    byte[] buffer = new byte[8192];
+                    int read;
+                    while ((read = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, read);
+                    }
+                }
+                Os.chmod(outFile.getAbsolutePath(), 0755);
+                Logger.logInfo(LOG_TAG, "Installed common script: " + script);
+            } catch (IOException e) {
+                Logger.logWarn(LOG_TAG, "Failed to install common script: " + script + ": " + e.getMessage());
             }
         }
 
