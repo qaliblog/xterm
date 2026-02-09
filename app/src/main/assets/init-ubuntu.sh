@@ -221,6 +221,7 @@ safe_apt_get() {
     local cmd="$1"
     local stderr_file="/tmp/apt_stderr_$$"
     local exit_code=0
+    local apt_base="apt-get -o APT::ExtractTemplates::ConfigFile=/dev/null"
 
     # Quick lock removal before waiting
     quick_remove_stale_locks || true
@@ -228,7 +229,7 @@ safe_apt_get() {
 
     # Run apt-get, capturing stderr to check for errors
     # We use || exit_code=$? to prevent 'set -e' from exiting the script
-    apt-get "$@" 2> "$stderr_file" || exit_code=$?
+    $apt_base "$@" 2> "$stderr_file" || exit_code=$?
 
     # Check for triggers that require retrying with ALL bypass flags
     # Triggers: lock issues, GPG/signature issues, unauthenticated packages, ports.ubuntu.com failures, network errors, 404s
@@ -238,15 +239,14 @@ safe_apt_get() {
 
         if [ "$cmd" = "update" ]; then
             # Retry update with insecure/force-expiry flags
-            apt-get "$@" \
+            $apt_base "$@" \
                 -o Acquire::AllowInsecureRepositories=true \
                 -o Acquire::AllowDowngradeToInsecureRepositories=true \
                 -o Acquire::Check-Valid-Until=false \
                 2> "$stderr_file" || exit_code=$?
         elif [ "$cmd" = "install" ] || [ "$cmd" = "upgrade" ] || [ "$cmd" = "dist-upgrade" ]; then
             # Retry install/upgrade with all requested bypass flags
-            # Note: --allow-insecure-repositories is not always understood as a flag, so we use -o
-            apt-get "$@" \
+            $apt_base "$@" \
                 --allow-unauthenticated \
                 --fix-missing \
                 -o Acquire::Retries=5 \
@@ -259,7 +259,9 @@ safe_apt_get() {
 
     # Success
     if [ $exit_code -eq 0 ]; then
-        cat "$stderr_file" >&2
+        if grep -q "unauthenticated" "$stderr_file" 2>/dev/null; then
+            printf "\033[33;1m[!] Note: Authentication warnings were overridden.\033[0m\n" >&2
+        fi
         rm -f "$stderr_file"
         return 0
     fi
@@ -480,50 +482,36 @@ fi
 
 # Copy fish color update script
 if [ -f "$PREFIX/local/bin/update-fish-colors.sh" ]; then
-    # Script already exists, just make it executable
     chmod +x "$PREFIX/local/bin/update-fish-colors.sh" 2>/dev/null || true
 else
-    # Create the script
     mkdir -p "$PREFIX/local/bin" 2>/dev/null || true
     cat > "$PREFIX/local/bin/update-fish-colors.sh" << 'SCRIPTEOF'
 #!/bin/sh
 # Script to update fish shell colors based on app theme
-# This script reads the Android app's SharedPreferences to detect theme
 
-# Paths to check for SharedPreferences
 PREF_PATHS="/data/data/com.xterm/shared_prefs/Settings.xml /data/data/com.xterm.debug/shared_prefs/Settings.xml"
-
-# Default to dark theme if we can't detect
 IS_DARK_MODE=1
 
-# Try to read the theme setting from SharedPreferences
 for PREF_PATH in $PREF_PATHS; do
     if [ -f "$PREF_PATH" ]; then
-        # Read default_night_mode value (MODE_NIGHT_YES=2, MODE_NIGHT_NO=1, MODE_NIGHT_FOLLOW_SYSTEM=0)
         NIGHT_MODE=$(grep -o 'name="default_night_mode"[^>]*>\([0-9]*\)</int>' "$PREF_PATH" 2>/dev/null | grep -o '[0-9]*' | tail -1)
         if [ -n "$NIGHT_MODE" ]; then
-            # MODE_NIGHT_YES = 2 (dark), MODE_NIGHT_NO = 1 (light), MODE_NIGHT_FOLLOW_SYSTEM = 0
             if [ "$NIGHT_MODE" = "2" ]; then
                 IS_DARK_MODE=1
             elif [ "$NIGHT_MODE" = "1" ]; then
                 IS_DARK_MODE=0
             else
-                # MODE_NIGHT_FOLLOW_SYSTEM - try to detect system theme
-                IS_DARK_MODE=1  # Default to dark
+                IS_DARK_MODE=1
             fi
             break
         fi
     fi
 done
 
-# Create fish config directory if it doesn't exist
 mkdir -p ~/.config/fish 2>/dev/null || true
 
-# Update fish colors based on theme
 if [ "$IS_DARK_MODE" = "1" ]; then
-    # Dark theme: Use light colors
     cat > ~/.config/fish/config.fish << 'FISHDARK'
-# Fish shell configuration for dark theme (light colors)
 set -g fish_color_normal white
 set -g fish_color_command cyan
 set -g fish_color_quote yellow
@@ -551,9 +539,7 @@ set -g fish_pager_color_prefix white --bold --underline
 set -g fish_pager_color_progress brwhite --background=cyan
 FISHDARK
 else
-    # Light theme: Use dark colors
     cat > ~/.config/fish/config.fish << 'FISHLIGHT'
-# Fish shell configuration for light theme (dark colors)
 set -g fish_color_normal black
 set -g fish_color_command blue
 set -g fish_color_quote yellow
@@ -582,19 +568,16 @@ set -g fish_pager_color_progress brblack --background=cyan
 FISHLIGHT
 fi
 
-# Make script executable
 chmod +x ~/.config/fish/config.fish 2>/dev/null || true
 SCRIPTEOF
     chmod +x "$PREFIX/local/bin/update-fish-colors.sh" 2>/dev/null || true
 fi
 
-# Run the script once to set initial colors immediately
 "$PREFIX/local/bin/update-fish-colors.sh" 2>/dev/null || true
 
 # Setup storage access (creates /sdcard symlink)
 "$PREFIX/local/bin/termos-setup-storage" 2>/dev/null || true
 
-# Add to crontab to run every minute (checks for theme changes in new tabs)
 (crontab -l 2>/dev/null | grep -v "update-fish-colors.sh"; echo "* * * * * $PREFIX/local/bin/update-fish-colors.sh >/dev/null 2>&1") | crontab - 2>/dev/null || true
 
 # Start cron daemon if not running

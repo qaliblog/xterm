@@ -96,6 +96,15 @@ ARGS="$ARGS -b /dev"
 # ARGS="$ARGS -b /data" # Removed risky binding to avoid permission issues
 ARGS="$ARGS -b /dev/urandom:/dev/random"
 ARGS="$ARGS -b /proc"
+
+# Bind the app's root data directory and its canonical path to avoid getcwd failures
+DATA_DIR=$(dirname "$PREFIX")
+REAL_DATA_DIR=$(realpath "$DATA_DIR" 2>/dev/null || echo "$DATA_DIR")
+ARGS="$ARGS -b $DATA_DIR"
+if [ "$REAL_DATA_DIR" != "$DATA_DIR" ]; then
+    ARGS="$ARGS -b $REAL_DATA_DIR"
+fi
+
 ARGS="$ARGS -b $PREFIX"
 # Create stat/vmstat files if they don't exist to avoid PRoot warnings
 mkdir -p "$PREFIX/local" 2>/dev/null || true
@@ -138,6 +147,11 @@ ARGS="$ARGS -b /sys"
 if [ ! -d "$ROOTFS_DIR_PATH/tmp" ]; then
  mkdir -p "$ROOTFS_DIR_PATH/tmp"
  chmod 1777 "$ROOTFS_DIR_PATH/tmp"
+fi
+
+if [ ! -d "$ROOTFS_DIR_PATH/root" ]; then
+ mkdir -p "$ROOTFS_DIR_PATH/root"
+ chmod 700 "$ROOTFS_DIR_PATH/root"
 fi
 ARGS="$ARGS -b $ROOTFS_DIR_PATH/tmp:/dev/shm"
 

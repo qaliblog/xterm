@@ -62,7 +62,7 @@ quick_remove_stale_locks() {
                     local age=$((current_time - lock_age))
                     if [ $age -gt 2 ]; then  # Very aggressive: 2 seconds
                         printf "\033[33;1m[!] \033[0mRemoving stale dpkg lock file (age: %ss)\033[0m\n" "${age}"
-                        rm -f "$lock_file" "$lock_frontend" 2>/dev/null || true
+                        rm -f "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
                     fi
                 else
                     # Can't determine age, but no process - remove it
@@ -192,7 +192,7 @@ wait_for_apt_lock() {
                     else
                         # Can't determine age, but no process found - remove it
                         printf "\033[33;1m[!] \033[0mRemoving stale dpkg lock file (no process found)\033[0m\n"
-                        rm -f "$lock_file" "$lock_frontend" 2>/dev/null || true
+                        rm -f "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
                     fi
                 fi
             fi
@@ -220,6 +220,7 @@ safe_apt_get() {
     local cmd="$1"
     local stderr_file="/tmp/apt_stderr_$$"
     local exit_code=0
+    local apt_base="apt-get -o APT::ExtractTemplates::ConfigFile=/dev/null"
 
     # Quick lock removal before waiting
     quick_remove_stale_locks || true
@@ -227,7 +228,7 @@ safe_apt_get() {
 
     # Run apt-get, capturing stderr to check for errors
     # We use || exit_code=$? to prevent 'set -e' from exiting the script
-    apt-get "$@" 2> "$stderr_file" || exit_code=$?
+    $apt_base "$@" 2> "$stderr_file" || exit_code=$?
 
     # Check for triggers that require retrying with ALL bypass flags
     # Triggers: lock issues, GPG/signature issues, unauthenticated packages, ports.ubuntu.com failures, network errors, 404s
@@ -237,7 +238,7 @@ safe_apt_get() {
 
         if [ "$cmd" = "update" ]; then
             # Retry update with insecure/force-expiry flags
-            apt-get "$@" \
+            $apt_base "$@" \
                 -o Acquire::AllowInsecureRepositories=true \
                 -o Acquire::AllowDowngradeToInsecureRepositories=true \
                 -o Acquire::Check-Valid-Until=false \
@@ -245,7 +246,7 @@ safe_apt_get() {
         elif [ "$cmd" = "install" ] || [ "$cmd" = "upgrade" ] || [ "$cmd" = "dist-upgrade" ]; then
             # Retry install/upgrade with all requested bypass flags
             # Note: --allow-insecure-repositories is not always understood as a flag, so we use -o
-            apt-get "$@" \
+            $apt_base "$@" \
                 --allow-unauthenticated \
                 --fix-missing \
                 -o Acquire::Retries=5 \
@@ -258,7 +259,9 @@ safe_apt_get() {
 
     # Success
     if [ $exit_code -eq 0 ]; then
-        cat "$stderr_file" >&2
+        if grep -q "unauthenticated" "$stderr_file" 2>/dev/null; then
+            printf "\033[33;1m[!] Note: Authentication warnings were overridden.\033[0m\n" >&2
+        fi
         rm -f "$stderr_file"
         return 0
     fi
@@ -303,7 +306,7 @@ if [ ! -f "$HOME/.termos_bootstrapped" ]; then
     if ! command -v fish >/dev/null 2>&1; then
         printf "\033[34;1m[*] \033[0mInstalling fish shell\033[0m\n"
         safe_apt_get update -qq || true
-        safe_apt_get install -y -qq fish 2>/dev/null || true
+        safe_apt_get install -y -qq fish || true
         if command -v fish >/dev/null 2>&1; then
             printf "\033[32;1m[+] \033[0mFish shell installed\033[0m\n"
         fi
@@ -456,29 +459,20 @@ else
     mkdir -p "$PREFIX/local/bin" 2>/dev/null || true
     cat > "$PREFIX/local/bin/update-fish-colors.sh" << 'SCRIPTEOF'
 #!/bin/sh
-# Script to update fish shell colors based on app theme
-
 PREF_PATHS="/data/data/com.xterm/shared_prefs/Settings.xml /data/data/com.xterm.debug/shared_prefs/Settings.xml"
 IS_DARK_MODE=1
-
 for PREF_PATH in $PREF_PATHS; do
     if [ -f "$PREF_PATH" ]; then
         NIGHT_MODE=$(grep -o 'name="default_night_mode"[^>]*>\([0-9]*\)</int>' "$PREF_PATH" 2>/dev/null | grep -o '[0-9]*' | tail -1)
         if [ -n "$NIGHT_MODE" ]; then
-            if [ "$NIGHT_MODE" = "2" ]; then
-                IS_DARK_MODE=1
-            elif [ "$NIGHT_MODE" = "1" ]; then
-                IS_DARK_MODE=0
-            else
-                IS_DARK_MODE=1
-            fi
+            if [ "$NIGHT_MODE" = "2" ]; then IS_DARK_MODE=1
+            elif [ "$NIGHT_MODE" = "1" ]; then IS_DARK_MODE=0
+            else IS_DARK_MODE=1; fi
             break
         fi
     fi
 done
-
 mkdir -p ~/.config/fish 2>/dev/null || true
-
 if [ "$IS_DARK_MODE" = "1" ]; then
     cat > ~/.config/fish/config.fish << 'FISHDARK'
 set -g fish_color_normal white
@@ -536,7 +530,6 @@ set -g fish_pager_color_prefix black --bold --underline
 set -g fish_pager_color_progress brblack --background=cyan
 FISHLIGHT
 fi
-
 chmod +x ~/.config/fish/config.fish 2>/dev/null || true
 SCRIPTEOF
     chmod +x "$PREFIX/local/bin/update-fish-colors.sh" 2>/dev/null || true

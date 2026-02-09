@@ -35,7 +35,7 @@ quick_remove_stale_locks() {
     local dpkg_lock_frontend="/var/lib/dpkg/lock-frontend"
 
     # Quick check: if no apt/dpkg processes are running, remove all locks immediately
-    if ! pgrep -x apt-get >/dev/null 2>&1 && ! pgrep -x apt >/dev/null 2>&1 && ! pgrep -x dpkg >/dev/null 2>&1; then
+    if ! pgrep -x apt-get -o APT::ExtractTemplates::ConfigFile=/dev/null >/dev/null 2>&1 && ! pgrep -x apt >/dev/null 2>&1 && ! pgrep -x dpkg >/dev/null 2>&1; then
         # No processes running, all locks are stale
         if [ -f "$lock_file" ] || [ -f "$dpkg_lock" ]; then
             local current_time=$(date +%s 2>/dev/null || echo "0")
@@ -93,7 +93,7 @@ wait_for_apt_lock() {
         local pid=""
 
         # Quick check: if no apt/dpkg processes are running, lock is definitely stale
-        if ! pgrep -x apt-get >/dev/null 2>&1 && ! pgrep -x apt >/dev/null 2>&1 && ! pgrep -x dpkg >/dev/null 2>&1; then
+        if ! pgrep -x apt-get -o APT::ExtractTemplates::ConfigFile=/dev/null >/dev/null 2>&1 && ! pgrep -x apt >/dev/null 2>&1 && ! pgrep -x dpkg >/dev/null 2>&1; then
             return 1  # No processes, lock is stale
         fi
 
@@ -214,7 +214,7 @@ wait_for_apt_lock() {
     return 1
 }
 
-# Function to safely run apt-get commands with retry logic for common failures
+# Function to safely run apt-get -o APT::ExtractTemplates::ConfigFile=/dev/null commands with retry logic for common failures
 # This version is optimized for bootstrap/development environments
 safe_apt_get() {
     local cmd="$1"
@@ -225,9 +225,9 @@ safe_apt_get() {
     quick_remove_stale_locks || true
     wait_for_apt_lock || true
 
-    # Run apt-get, capturing stderr to check for errors
+    # Run apt-get -o APT::ExtractTemplates::ConfigFile=/dev/null, capturing stderr to check for errors
     # We use || exit_code=$? to prevent 'set -e' from exiting the script
-    apt-get "$@" 2> "$stderr_file" || exit_code=$?
+    apt-get -o APT::ExtractTemplates::ConfigFile=/dev/null "$@" 2> "$stderr_file" || exit_code=$?
 
     # Check for triggers that require retrying with ALL bypass flags
     # Triggers: lock issues, GPG/signature issues, unauthenticated packages, ports.ubuntu.com failures, network errors, 404s
@@ -237,15 +237,15 @@ safe_apt_get() {
 
         if [ "$cmd" = "update" ]; then
             # Retry update with insecure/force-expiry flags
-            apt-get "$@" \
+            apt-get -o APT::ExtractTemplates::ConfigFile=/dev/null "$@" \
                 -o Acquire::AllowInsecureRepositories=true \
                 -o Acquire::AllowDowngradeToInsecureRepositories=true \
                 -o Acquire::Check-Valid-Until=false \
                 2> "$stderr_file" || exit_code=$?
         elif [ "$cmd" = "install" ] || [ "$cmd" = "upgrade" ] || [ "$cmd" = "dist-upgrade" ]; then
             # Retry install/upgrade with all requested bypass flags
-            # Note: --allow-insecure-repositories is not always understood as a flag, so we use -o
-            apt-get "$@" \
+            # Note:  is not always understood as a flag, so we use -o
+            apt-get -o APT::ExtractTemplates::ConfigFile=/dev/null "$@" \
                 --allow-unauthenticated \
                 --fix-missing \
                 -o Acquire::Retries=5 \

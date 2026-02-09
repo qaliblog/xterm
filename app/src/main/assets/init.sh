@@ -24,35 +24,45 @@ fi
 export PS1="\[\e[38;5;46m\]\u\[\033[39m\]@xterm \[\033[39m\]\w \[\033[0m\]\\$ "
 # shellcheck disable=SC2034
 export PIP_BREAK_SYSTEM_PACKAGES=1
-required_packages="bash gcompat glib nano"
-missing_packages=""
-for pkg in $required_packages; do
-    if ! apk info -e $pkg >/dev/null 2>&1; then
-        missing_packages="$missing_packages $pkg"
-    fi
-done
-if [ -n "$missing_packages" ]; then
-    printf "\033[34;1m[*] \033[0mInstalling Important packages\033[0m\n"
-    apk update && apk upgrade
-    apk add $missing_packages
-    if [ $? -eq 0 ]; then
-        printf "\033[32;1m[+] \033[0mSuccessfully Installed\033[0m\n"
-    fi
-    printf "\033[34m[*] \033[0mUse \033[32mapk\033[0m to install new packages\033[0m\n"
-fi
 
-# Install fish shell if not already installed
-if ! command -v fish >/dev/null 2>&1; then
-    printf "\033[34;1m[*] \033[0mInstalling fish shell\033[0m\n"
-    apk add fish 2>/dev/null || true
-    if command -v fish >/dev/null 2>&1; then
-        printf "\033[32;1m[+] \033[0mFish shell installed\033[0m\n"
-    fi
-fi
+# Ensure home directory exists
+mkdir -p "$HOME" 2>/dev/null || true
 
-# Install cron if not already installed
-if ! command -v crond >/dev/null 2>&1; then
-    apk add dcron 2>/dev/null || true
+# Initial bootstrap (only once per rootfs)
+if [ ! -f "$HOME/.termos_bootstrapped" ]; then
+    required_packages="bash gcompat glib nano"
+    missing_packages=""
+    for pkg in $required_packages; do
+        if ! apk info -e $pkg >/dev/null 2>&1; then
+            missing_packages="$missing_packages $pkg"
+        fi
+    done
+    if [ -n "$missing_packages" ]; then
+        printf "\033[34;1m[*] \033[0mInstalling Important packages\033[0m\n"
+        apk update && apk upgrade
+        apk add $missing_packages
+        if [ $? -eq 0 ]; then
+            printf "\033[32;1m[+] \033[0mSuccessfully Installed\033[0m\n"
+        fi
+        printf "\033[34m[*] \033[0mUse \033[32mapk\033[0m to install new packages\033[0m\n"
+    fi
+
+    # Install fish shell if not already installed
+    if ! command -v fish >/dev/null 2>&1; then
+        printf "\033[34;1m[*] \033[0mInstalling fish shell\033[0m\n"
+        apk add fish 2>/dev/null || true
+        if command -v fish >/dev/null 2>&1; then
+            printf "\033[32;1m[+] \033[0mFish shell installed\033[0m\n"
+        fi
+    fi
+
+    # Install cron if not already installed
+    if ! command -v crond >/dev/null 2>&1; then
+        apk add dcron 2>/dev/null || true
+    fi
+
+    # Mark bootstrap as complete
+    touch "$HOME/.termos_bootstrapped" 2>/dev/null || true
 fi
 
 # Copy mount-proc helper script if it exists
@@ -371,8 +381,8 @@ fi
 
 #fix linker warning
 if [ ! -f /linkerconfig/ld.config.txt ]; then
-    mkdir -p /linkerconfig
-    touch /linkerconfig/ld.config.txt
+    mkdir -p /linkerconfig 2>/dev/null || true
+    touch /linkerconfig/ld.config.txt 2>/dev/null || true
 fi
 
 # Fix group warnings by adding missing group entries
