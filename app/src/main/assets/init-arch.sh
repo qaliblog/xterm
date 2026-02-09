@@ -18,14 +18,14 @@ export PIP_BREAK_SYSTEM_PACKAGES=1
 
 # Initialize pacman keyring if needed
 if [ ! -d /etc/pacman.d/gnupg ]; then
-    echo -e "\e[34;1m[*] \e[0mInitializing pacman keyring\e[0m"
+    printf "\033[34;1m[*] \033[0mInitializing pacman keyring\033[0m\n"
     pacman-key --init 2>/dev/null || true
     pacman-key --populate archlinux 2>/dev/null || true
 fi
 
 # Update package database
 if [ -f /usr/bin/pacman ]; then
-    echo -e "\e[34;1m[*] \e[0mUpdating package database\e[0m"
+    printf "\033[34;1m[*] \033[0mUpdating package database\033[0m\n"
     pacman -Sy --noconfirm 2>/dev/null || true
 fi
 
@@ -39,22 +39,22 @@ for pkg in $required_packages; do
 done
 
 if [ -n "$missing_packages" ]; then
-    echo -e "\e[34;1m[*] \e[0mInstalling Important packages\e[0m"
+    printf "\033[34;1m[*] \033[0mInstalling Important packages\033[0m\n"
     pacman -Sy --noconfirm
     pacman -S --noconfirm $missing_packages 2>/dev/null || true
     if [ $? -eq 0 ]; then
-        echo -e "\e[32;1m[+] \e[0mSuccessfully Installed\e[0m"
+        printf "\033[32;1m[+] \033[0mSuccessfully Installed\033[0m\n"
     fi
-    echo -e "\e[34m[*] \e[0mUse \e[32mpacman\e[0m to install new packages\e[0m"
+    printf "\033[34m[*] \033[0mUse \033[32mpacman\033[0m to install new packages\033[0m\n"
 fi
 
 # Install fish shell if not already installed
 if ! command -v fish >/dev/null 2>&1; then
-    echo -e "\e[34;1m[*] \e[0mInstalling fish shell\e[0m"
+    printf "\033[34;1m[*] \033[0mInstalling fish shell\033[0m\n"
     pacman -Sy --noconfirm
     pacman -S --noconfirm fish 2>/dev/null || true
     if command -v fish >/dev/null 2>&1; then
-        echo -e "\e[32;1m[+] \e[0mFish shell installed\e[0m"
+        printf "\033[32;1m[+] \033[0mFish shell installed\033[0m\n"
     fi
 fi
 
@@ -288,9 +288,9 @@ if ! pgrep -x crond >/dev/null 2>&1; then
     crond -b -S -l 0 >/dev/null 2>&1 &
     sleep 1
     if pgrep -x crond >/dev/null 2>&1; then
-        echo -e "\e[32;1m[+] \e[0mCron daemon started\e[0m"
+        printf "\033[32;1m[+] \033[0mCron daemon started\033[0m\n"
     else
-        echo -e "\e[33;1m[!] \e[0mWarning: Failed to start cron daemon\e[0m"
+        printf "\033[33;1m[!] \033[0mWarning: Failed to start cron daemon\033[0m\n"
     fi
 fi
 

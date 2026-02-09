@@ -41,7 +41,7 @@ quick_remove_stale_locks() {
                 if [ "$current_time" != "0" ] && [ "$lock_age" != "0" ]; then
                     local age=$((current_time - lock_age))
                     if [ $age -gt 2 ]; then  # Very aggressive: 2 seconds
-                        echo -e "\e[33;1m[!] \e[0mRemoving stale apt lock file (age: ${age}s)\e[0m"
+                        printf "\033[33;1m[!] \033[0mRemoving stale apt lock file (age: %ss)\033[0m\n" "${age}"
                         rm -f "$lock_file" "$lock_frontend" 2>/dev/null || true
                     fi
                 else
@@ -56,7 +56,7 @@ quick_remove_stale_locks() {
                 if [ "$current_time" != "0" ] && [ "$lock_age" != "0" ]; then
                     local age=$((current_time - lock_age))
                     if [ $age -gt 2 ]; then  # Very aggressive: 2 seconds
-                        echo -e "\e[33;1m[!] \e[0mRemoving stale dpkg lock file (age: ${age}s)\e[0m"
+                        printf "\033[33;1m[!] \033[0mRemoving stale dpkg lock file (age: %ss)\033[0m\n" "${age}"
                         rm -f "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
                     fi
                 else
@@ -127,7 +127,7 @@ wait_for_apt_lock() {
                     has_lock=true
                 else
                     # Stale lock - remove it
-                    echo -e "\e[33;1m[!] \e[0mRemoving stale apt lock file\e[0m"
+                    printf "\033[33;1m[!] \033[0mRemoving stale apt lock file\033[0m\n"
                     rm -f "$lock_file" "$lock_frontend" 2>/dev/null || true
                 fi
             elif [ "$lock_pid" = "locked" ]; then
@@ -142,7 +142,7 @@ wait_for_apt_lock() {
                         # Reduced threshold: remove locks older than 3 seconds (was 10)
                         if [ $age -gt 3 ]; then
                             # Lock is older than 3 seconds and no process found - likely stale
-                            echo -e "\e[33;1m[!] \e[0mRemoving stale apt lock file (age: ${age}s)\e[0m"
+                            printf "\033[33;1m[!] \033[0mRemoving stale apt lock file (age: %ss)\033[0m\n" "${age}"
                             rm -f "$lock_file" "$lock_frontend" 2>/dev/null || true
                         else
                             # Very new lock (< 3s), might be actively being created
@@ -150,7 +150,7 @@ wait_for_apt_lock() {
                         fi
                     else
                         # Can't determine age, but no process found - remove it
-                        echo -e "\e[33;1m[!] \e[0mRemoving stale apt lock file (no process found)\e[0m"
+                        printf "\033[33;1m[!] \033[0mRemoving stale apt lock file (no process found)\033[0m\n"
                         rm -f "$lock_file" "$lock_frontend" 2>/dev/null || true
                     fi
                 fi
@@ -164,7 +164,7 @@ wait_for_apt_lock() {
                 if kill -0 "$dpkg_pid" 2>/dev/null; then
                     has_lock=true
                 else
-                    echo -e "\e[33;1m[!] \e[0mRemoving stale dpkg lock file\e[0m"
+                    printf "\033[33;1m[!] \033[0mRemoving stale dpkg lock file\033[0m\n"
                     rm -f "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
                 fi
             elif [ "$dpkg_pid" = "locked" ]; then
@@ -178,7 +178,7 @@ wait_for_apt_lock() {
                         local age=$((current_time - lock_age))
                         # Reduced threshold: remove locks older than 3 seconds (was 10)
                         if [ $age -gt 3 ]; then
-                            echo -e "\e[33;1m[!] \e[0mRemoving stale dpkg lock file (age: ${age}s)\e[0m"
+                            printf "\033[33;1m[!] \033[0mRemoving stale dpkg lock file (age: %ss)\033[0m\n" "${age}"
                             rm -f "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
                         else
                             # Very new lock (< 3s), might be actively being created
@@ -186,7 +186,7 @@ wait_for_apt_lock() {
                         fi
                     else
                         # Can't determine age, but no process found - remove it
-                        echo -e "\e[33;1m[!] \e[0mRemoving stale dpkg lock file (no process found)\e[0m"
+                        printf "\033[33;1m[!] \033[0mRemoving stale dpkg lock file (no process found)\033[0m\n"
                         rm -f "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
                     fi
                 fi
@@ -203,84 +203,68 @@ wait_for_apt_lock() {
     done
 
     # If we get here, we've timed out
-    echo -e "\e[33;1m[!] \e[0mWarning: Apt lock wait timeout. Attempting to remove stale locks.\e[0m"
+    printf "\033[33;1m[!] \033[0mWarning: Apt lock wait timeout. Attempting to remove stale locks.\033[0m\n"
     # Try to remove locks one more time
     rm -f "$lock_file" "$lock_frontend" "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
     return 1
 }
 
 # Function to safely run apt-get commands with retry logic for common failures
+# This version is optimized for bootstrap/development environments
 safe_apt_get() {
     local cmd="$1"
-    local retries=2
-    local attempt=0
     local stderr_file="/tmp/apt_stderr_$$"
+    local exit_code=0
 
-    while [ $attempt -lt $retries ]; do
-        # Quick lock removal before waiting
-        quick_remove_stale_locks || true
-        wait_for_apt_lock || true
+    # Quick lock removal before waiting
+    quick_remove_stale_locks || true
+    wait_for_apt_lock || true
 
-        # Run apt-get, capturing stderr to check for errors
-        # stdout goes through normally (respects -qq flags)
-        apt-get "$@" 2> "$stderr_file"
-        local exit_code=$?
+    # Run apt-get, capturing stderr to check for errors
+    # We use || exit_code=$? to prevent 'set -e' from exiting the script
+    apt-get "$@" 2> "$stderr_file" || exit_code=$?
 
-        # 1. Check for lock errors
-        if grep -qE "(Could not get lock|Unable to lock|is held by process)" "$stderr_file" 2>/dev/null; then
-            if [ $attempt -eq 0 ]; then
-                echo -e "\e[33;1m[!] \e[0mWaiting for apt lock and retrying...\e[0m" >&2
-                cat "$stderr_file" >&2
-                sleep 3
-                attempt=$((attempt + 1))
-                continue
-            fi
-        # 2. Check for GPG, network, or 404 errors
-        elif [ $exit_code -ne 0 ] && grep -qE "(NO_PUBKEY|InRelease|not signed|Temporary failure|Connection timed out|404  Not Found)" "$stderr_file" 2>/dev/null; then
-            echo -e "\e[33;1m[!] \e[0mApt operation failed with known issues. Retrying with bypass flags...\e[0m" >&2
-            cat "$stderr_file" >&2
+    # Check for triggers that require retrying with ALL bypass flags
+    # Triggers: lock issues, GPG/signature issues, unauthenticated packages, ports.ubuntu.com failures, network errors, 404s
+    if [ $exit_code -ne 0 ] && grep -qE "(Could not get lock|Unable to lock|is held by process|dpkg lock|NO_PUBKEY|InRelease|not signed|unauthenticated|ports.ubuntu.com|Temporary failure|Connection timed out|404  Not Found)" "$stderr_file" 2>/dev/null; then
+        printf "\033[33;1m[!] Apt operation failed. Retrying with ALL bypass flags...\033[0m\n" >&2
+        cat "$stderr_file" >&2
 
-            if [ "$cmd" = "update" ]; then
-                apt-get "$@" \
-                    -o Acquire::AllowInsecureRepositories=true \
-                    -o Acquire::AllowDowngradeToInsecureRepositories=true \
-                    -o Acquire::Check-Valid-Until=false \
-                    2>> "$stderr_file"
-                exit_code=$?
-            elif [ "$cmd" = "install" ] || [ "$cmd" = "upgrade" ] || [ "$cmd" = "dist-upgrade" ]; then
-                apt-get "$@" \
-                    --fix-missing \
-                    -o Acquire::Retries=5 \
-                    2>> "$stderr_file"
-                exit_code=$?
-            fi
-
-            if [ $exit_code -eq 0 ]; then
-                rm -f "$stderr_file"
-                return 0
-            fi
+        if [ "$cmd" = "update" ]; then
+            # Retry update with insecure/force-expiry flags
+            apt-get "$@" \
+                -o Acquire::AllowInsecureRepositories=true \
+                -o Acquire::AllowDowngradeToInsecureRepositories=true \
+                -o Acquire::Check-Valid-Until=false \
+                2> "$stderr_file" || exit_code=$?
+        elif [ "$cmd" = "install" ] || [ "$cmd" = "upgrade" ] || [ "$cmd" = "dist-upgrade" ]; then
+            # Retry install/upgrade with all requested bypass flags
+            apt-get "$@" \
+                --allow-unauthenticated \
+                --allow-insecure-repositories \
+                --fix-missing \
+                -o Acquire::Retries=5 \
+                2> "$stderr_file" || exit_code=$?
         fi
+    fi
 
-        # If we reached here and exit_code is still non-zero, it's a real failure
-        if [ $exit_code -ne 0 ]; then
-            echo -e "\e[31;1m[!] \e[0mApt operation failed: $(cat "$stderr_file" 2>/dev/null)\e[0m" >&2
-            echo -e "\e[33;1m[*] \e[0mSkipping this operation and continuing build...\e[0m" >&2
-            rm -f "$stderr_file"
-            return 0 # Return 0 to allow script to continue (development/bootstrap only)
-        fi
-
-        # Success
+    # Success
+    if [ $exit_code -eq 0 ]; then
         cat "$stderr_file" >&2
         rm -f "$stderr_file"
         return 0
-    done
+    fi
 
+    # If we reached here, all attempts failed.
+    # Log a warning and continue the build instead of exiting with non-zero code.
+    printf "\033[33;1m[!] Warning: Apt operation failed: %s\033[0m\n" "$(cat "$stderr_file" 2>/dev/null)" >&2
+    printf "\033[33;1m[*] Continuing build anyway (permitted for bootstrap/development only)...\033[0m\n" >&2
     rm -f "$stderr_file"
     return 0
 }
 
 # Update package lists and upgrade system
-echo -e "\e[34;1m[*] \e[0mUpdating package lists\e[0m"
+printf "\033[34;1m[*] \033[0mUpdating package lists\033[0m\n"
 safe_apt_get update -qq || true
 
 # Check and install essential packages
@@ -293,23 +277,23 @@ for pkg in $required_packages; do
 done
 
 if [ -n "$missing_packages" ]; then
-    echo -e "\e[34;1m[*] \e[0mInstalling Important packages\e[0m"
+    printf "\033[34;1m[*] \033[0mInstalling Important packages\033[0m\n"
     safe_apt_get update -qq || true
     safe_apt_get upgrade -y -qq || true
     safe_apt_get install -y -qq $missing_packages
     if [ $? -eq 0 ]; then
-        echo -e "\e[32;1m[+] \e[0mSuccessfully Installed\e[0m"
+        printf "\033[32;1m[+] \033[0mSuccessfully Installed\033[0m\n"
     fi
-    echo -e "\e[34m[*] \e[0mUse \e[32mapt\e[0m to install new packages\e[0m"
+    printf "\033[34m[*] \033[0mUse \033[32mapt\033[0m to install new packages\033[0m\n"
 fi
 
 # Install fish shell if not already installed
 if ! command -v fish >/dev/null 2>&1; then
-    echo -e "\e[34;1m[*] \e[0mInstalling fish shell\e[0m"
+    printf "\033[34;1m[*] \033[0mInstalling fish shell\033[0m\n"
     safe_apt_get update -qq || true
     safe_apt_get install -y -qq fish 2>/dev/null || true
     if command -v fish >/dev/null 2>&1; then
-        echo -e "\e[32;1m[+] \e[0mFish shell installed\e[0m"
+        printf "\033[32;1m[+] \033[0mFish shell installed\033[0m\n"
     fi
 fi
 
@@ -549,9 +533,9 @@ if ! pgrep -x cron >/dev/null 2>&1; then
     fi
     sleep 1
     if pgrep -x cron >/dev/null 2>&1; then
-        echo -e "\e[32;1m[+] \e[0mCron daemon started\e[0m"
+        printf "\033[32;1m[+] \033[0mCron daemon started\033[0m\n"
     else
-        echo -e "\e[33;1m[!] \e[0mWarning: Failed to start cron daemon\e[0m"
+        printf "\033[33;1m[!] \033[0mWarning: Failed to start cron daemon\033[0m\n"
     fi
 fi
 

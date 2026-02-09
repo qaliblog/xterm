@@ -32,21 +32,21 @@ for pkg in $required_packages; do
     fi
 done
 if [ -n "$missing_packages" ]; then
-    echo -e "\e[34;1m[*] \e[0mInstalling Important packages\e[0m"
+    printf "\033[34;1m[*] \033[0mInstalling Important packages\033[0m\n"
     apk update && apk upgrade
     apk add $missing_packages
     if [ $? -eq 0 ]; then
-        echo -e "\e[32;1m[+] \e[0mSuccessfully Installed\e[0m"
+        printf "\033[32;1m[+] \033[0mSuccessfully Installed\033[0m\n"
     fi
-    echo -e "\e[34m[*] \e[0mUse \e[32mapk\e[0m to install new packages\e[0m"
+    printf "\033[34m[*] \033[0mUse \033[32mapk\033[0m to install new packages\033[0m\n"
 fi
 
 # Install fish shell if not already installed
 if ! command -v fish >/dev/null 2>&1; then
-    echo -e "\e[34;1m[*] \e[0mInstalling fish shell\e[0m"
+    printf "\033[34;1m[*] \033[0mInstalling fish shell\033[0m\n"
     apk add fish 2>/dev/null || true
     if command -v fish >/dev/null 2>&1; then
-        echo -e "\e[32;1m[+] \e[0mFish shell installed\e[0m"
+        printf "\033[32;1m[+] \033[0mFish shell installed\033[0m\n"
     fi
 fi
 
@@ -332,22 +332,22 @@ if ! pgrep -x crond >/dev/null 2>&1; then
     crond -b -S -l 0 >/dev/null 2>&1 &
     sleep 1
     if pgrep -x crond >/dev/null 2>&1; then
-        echo -e "\e[32;1m[+] \e[0mCron daemon started\e[0m"
+        printf "\033[32;1m[+] \033[0mCron daemon started\033[0m\n"
     else
         # Try alternative method: run in foreground in background using nohup
         nohup crond -f -l 0 >/dev/null 2>&1 &
         sleep 1
         if pgrep -x crond >/dev/null 2>&1; then
-            echo -e "\e[32;1m[+] \e[0mCron daemon started (alternative method)\e[0m"
+            printf "\033[32;1m[+] \033[0mCron daemon started (alternative method)\033[0m\n"
         else
             # Final fallback: try simple background start without flags
             crond >/dev/null 2>&1 &
             sleep 1
             if pgrep -x crond >/dev/null 2>&1; then
-                echo -e "\e[32;1m[+] \e[0mCron daemon started (fallback method)\e[0m"
+                printf "\033[32;1m[+] \033[0mCron daemon started (fallback method)\033[0m\n"
             else
-                echo -e "\e[33;1m[!] \e[0mWarning: Failed to start cron daemon (fish theme updates may not work automatically)\e[0m"
-                echo -e "\e[33;1m[!] \e[0mYou can manually run: $PREFIX/local/bin/update-fish-colors.sh\e[0m"
+                printf "\033[33;1m[!] \033[0mWarning: Failed to start cron daemon (fish theme updates may not work automatically)\033[0m\n"
+                printf "\033[33;1m[!] \033[0mYou can manually run: $PREFIX/local/bin/update-fish-colors.sh\033[0m\n"
             fi
         fi
     fi
