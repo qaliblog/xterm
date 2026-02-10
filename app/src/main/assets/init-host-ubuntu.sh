@@ -3,6 +3,7 @@ export PROOT_NO_SECCOMP=1
 export PROOT_SECCOMP=0
 export PROOT_FORCE_PTRACE_TRACEME=1
 export PROOT_NO_HARDLINKS=1
+export PROOT_SKIP_CLEANUP=1
 
 # Determine rootfs file and directory from environment or defaults
 ROOTFS_FILE="${ROOTFS_FILE:-ubuntu.tar.gz}"
@@ -82,7 +83,7 @@ done
 
 
 ARGS="--kill-on-exit"
-ARGS="$ARGS -k 5.4.0"
+ARGS="$ARGS -k 4.14.0"
 ARGS="$ARGS -w /"
 
 for system_mnt in /apex /odm /product /system /system_ext /vendor \
@@ -150,6 +151,11 @@ ARGS="$ARGS -b /sys"
 if [ ! -d "$ROOTFS_DIR_PATH/tmp" ]; then
  mkdir -p "$ROOTFS_DIR_PATH/tmp"
  chmod 1777 "$ROOTFS_DIR_PATH/tmp"
+fi
+
+if [ ! -d "$ROOTFS_DIR_PATH/root" ]; then
+ mkdir -p "$ROOTFS_DIR_PATH/root"
+ chmod 700 "$ROOTFS_DIR_PATH/root"
 fi
 ARGS="$ARGS -b $ROOTFS_DIR_PATH/tmp:/dev/shm"
 

@@ -34,43 +34,13 @@ quick_remove_stale_locks() {
     local dpkg_lock="/var/lib/dpkg/lock"
     local lock_frontend="/var/lib/apt/lists/lock-frontend"
     local dpkg_lock_frontend="/var/lib/dpkg/lock-frontend"
+    local apt_lock="/var/lib/apt/lists/lock"
 
     # Quick check: if no apt/dpkg processes are running, remove all locks immediately
     if ! pgrep -x apt-get >/dev/null 2>&1 && ! pgrep -x apt >/dev/null 2>&1 && ! pgrep -x dpkg >/dev/null 2>&1; then
         # No processes running, all locks are stale
-        if [ -f "$lock_file" ] || [ -f "$dpkg_lock" ]; then
-            local current_time=$(date +%s 2>/dev/null || echo "0")
-
-            # Check apt lock age
-            if [ -f "$lock_file" ]; then
-                local lock_age=$(stat -c %Y "$lock_file" 2>/dev/null || echo "0")
-                if [ "$current_time" != "0" ] && [ "$lock_age" != "0" ]; then
-                    local age=$((current_time - lock_age))
-                    if [ $age -gt 2 ]; then  # Very aggressive: 2 seconds
-                        printf "\033[33;1m[!] \033[0mRemoving stale apt lock file (age: %ss)\033[0m\n" "${age}"
-                        rm -f "$lock_file" "$lock_frontend" 2>/dev/null || true
-                    fi
-                else
-                    # Can't determine age, but no process - remove it
-                    rm -f "$lock_file" "$lock_frontend" 2>/dev/null || true
-                fi
-            fi
-
-            # Check dpkg lock age
-            if [ -f "$dpkg_lock" ]; then
-                local lock_age=$(stat -c %Y "$dpkg_lock" 2>/dev/null || echo "0")
-                if [ "$current_time" != "0" ] && [ "$lock_age" != "0" ]; then
-                    local age=$((current_time - lock_age))
-                    if [ $age -gt 2 ]; then  # Very aggressive: 2 seconds
-                        printf "\033[33;1m[!] \033[0mRemoving stale dpkg lock file (age: %ss)\033[0m\n" "${age}"
-                        rm -f "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
-                    fi
-                else
-                    # Can't determine age, but no process - remove it
-                    rm -f "$dpkg_lock" "$dpkg_lock_frontend" 2>/dev/null || true
-                fi
-            fi
-        fi
+        # Target all common lock locations
+        rm -f "$lock_file" "$lock_frontend" "$dpkg_lock" "$dpkg_lock_frontend" "/var/cache/apt/archives/lock" 2>/dev/null || true
         return 0
     fi
     return 1
@@ -221,7 +191,8 @@ safe_apt_get() {
     local cmd="$1"
     local stderr_file="/tmp/apt_stderr_$$"
     local exit_code=0
-    local apt_base="apt-get -o APT::ExtractTemplates::ConfigFile=/dev/null"
+    # Use -o DPkg::Pre-Install-Pkgs::="" to skip dpkg-preconfigure (often fails with ENOSYS in proot)
+    local apt_base="apt-get -o APT::ExtractTemplates::ConfigFile=/dev/null -o DPkg::Pre-Install-Pkgs::=\"\" -o DPkg::Options::=\"--force-confdef\" -o DPkg::Options::=\"--force-confold\""
 
     # Quick lock removal before waiting
     quick_remove_stale_locks || true
@@ -435,11 +406,9 @@ if [ -z "$ANDROID_STORAGE" ]; then
 fi
 
 # Create /sdcard if it doesn't exist or is not accessible
-if [ ! -e "/sdcard" ] || [ ! -r "/sdcard" ] || [ ! -x "/sdcard" ]; then
+if [ ! -e "/sdcard" ] || [ ! -r "/sdcard" ] || [ ! -x "/sdcard" ] || ! ls "/sdcard" >/dev/null 2>&1; then
     # Remove existing /sdcard if it's not working
-    if [ -e "/sdcard" ] && ! ls "/sdcard" >/dev/null 2>&1; then
-        rm -rf /sdcard 2>/dev/null || true
-    fi
+    rm -rf /sdcard 2>/dev/null || true
 
     # Try to create symlink
     if ln -sf "$ANDROID_STORAGE" /sdcard 2>/dev/null; then
