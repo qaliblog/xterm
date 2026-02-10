@@ -208,7 +208,7 @@ public class LinuxSessionCreator {
         String path = System.getenv("PATH");
         if (path == null) path = "";
         env.add("PATH=" + path + ":/sbin:" + localBinDir.getAbsolutePath());
-        env.add("HOME=/sdcard");
+        env.add("HOME=" + filesDir.getAbsolutePath() + "/home");
 
         File externalFilesDir = context.getExternalFilesDir(null);
         if (externalFilesDir != null) {

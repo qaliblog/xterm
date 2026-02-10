@@ -384,7 +384,14 @@ public final class TermuxInstaller {
                     if (entry.isSymbolicLink()) {
                         try { Os.symlink(entry.getLinkName(), file.getAbsolutePath()); } catch (Exception e) {}
                     } else if (entry.isLink()) {
-                         // Skip hard links
+                        // Attempt to handle hard links by creating a symlink instead
+                        try {
+                            String linkName = entry.getLinkName();
+                            // TarArchiveEntry.getLinkName() returns the relative path to the existing file
+                            Os.symlink(linkName, file.getAbsolutePath());
+                        } catch (Exception e) {
+                            Logger.logWarn(LOG_TAG, "Failed to create link for " + entry.getName() + ": " + e.getMessage());
+                        }
                     } else {
                         try (FileOutputStream out = new FileOutputStream(file)) {
                             byte[] buffer = new byte[8192];
@@ -396,21 +403,19 @@ public final class TermuxInstaller {
                         try {
                             int mode = entry.getMode();
                             String name = entry.getName();
-                            if (mode != 0) {
-                                mode |= 0444; // ensure readable
-                                if (entry.isDirectory()) mode |= 0111; // ensure searchable
-                                // If it's a binary/library, ensure executable
-                                if (name.contains("bin/") || name.contains("sbin/") || name.endsWith(".so") || name.contains("/ld-")) {
-                                    mode |= 0111;
-                                }
-                                Os.chmod(file.getAbsolutePath(), mode);
-                            } else {
-                                if (name.contains("bin/") || name.contains("sbin/") || name.endsWith(".so") || name.contains("/ld-")) {
-                                    Os.chmod(file.getAbsolutePath(), 0755);
+                            // Ensure all binaries and libraries are executable
+                            if (name.contains("bin/") || name.contains("sbin/") || name.endsWith(".so") || name.contains("/ld-")) {
+                                if (mode != 0) {
+                                    mode |= 0755;
                                 } else {
-                                    Os.chmod(file.getAbsolutePath(), 0644);
+                                    mode = 0755;
                                 }
+                            } else if (mode != 0) {
+                                mode |= 0644;
+                            } else {
+                                mode = 0644;
                             }
+                            Os.chmod(file.getAbsolutePath(), mode);
                         } catch (Exception e) {}
                     }
                 }
