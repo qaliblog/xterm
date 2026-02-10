@@ -49,13 +49,13 @@ if [ -z "$(ls -A "$ROOTFS_DIR_PATH" 2>/dev/null | grep -vE '^(root|tmp)$')" ]; t
     # Use appropriate tar flags based on file extension
     # Suppress symlink warnings (normal on Android - symlinks point to system binaries)
     if echo "$ROOTFS_FILE" | grep -q "\.tar\.gz$"; then
-        tar -xzf "$ROOTFS_FILE_PATH" -C "$ROOTFS_DIR_PATH" --no-same-owner --no-same-permissions 2>&1 | \
+        tar -xzf "$ROOTFS_FILE_PATH" -C "$ROOTFS_DIR_PATH" --no-same-owner 2>&1 | \
             grep -v "tar: Removing leading" | \
             grep -v "can't link" | \
             grep -v "not under" | \
             grep -v "tar: had errors" || true
     else
-        tar -xf "$ROOTFS_FILE_PATH" -C "$ROOTFS_DIR_PATH" --no-same-owner --no-same-permissions 2>&1 | \
+        tar -xf "$ROOTFS_FILE_PATH" -C "$ROOTFS_DIR_PATH" --no-same-owner 2>&1 | \
             grep -v "tar: Removing leading" | \
             grep -v "can't link" | \
             grep -v "not under" | \
@@ -84,7 +84,8 @@ done
 
 ARGS="--kill-on-exit"
 ARGS="$ARGS -k 4.14.0"
-ARGS="$ARGS -w /"
+ARGS="$ARGS -0"
+ARGS="$ARGS -w /root"
 
 for system_mnt in /apex /odm /product /system /system_ext /vendor \
  /linkerconfig/ld.config.txt \
@@ -98,8 +99,9 @@ for system_mnt in /apex /odm /product /system /system_ext /vendor \
 done
 unset system_mnt
 
-ARGS="$ARGS -b /sdcard"
-ARGS="$ARGS -b /storage"
+# ARGS="$ARGS -b /sdcard"
+# ARGS="$ARGS -b /storage"
+ARGS="$ARGS -b $PREFIX/files/home:/root"
 ARGS="$ARGS -b /dev"
 # ARGS="$ARGS -b /data" # Removed risky binding to avoid permission issues
 ARGS="$ARGS -b /dev/urandom:/dev/random"

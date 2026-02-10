@@ -16,8 +16,9 @@ if [ -w /etc ]; then
     fi
 fi
 
-if [ ! -s /etc/resolv.conf ]; then
+if [ ! -s /etc/resolv.conf ] || ! grep -q "nameserver" /etc/resolv.conf 2>/dev/null; then
     echo "nameserver 8.8.8.8" > /etc/resolv.conf
+    echo "nameserver 1.1.1.1" >> /etc/resolv.conf
 fi
 
 
@@ -395,6 +396,7 @@ fi
 if [ "$#" -eq 0 ]; then
     source /etc/profile 2>/dev/null || true
     export PS1="\[\e[38;5;46m\]\u\[\033[39m\]@xterm \[\033[39m\]\w \[\033[0m\]\\$ "
+    export HOME=/root
     mkdir -p "$HOME" 2>/dev/null || true
     if ! cd "$HOME" 2>/dev/null; then
         cd / 2>/dev/null || true
