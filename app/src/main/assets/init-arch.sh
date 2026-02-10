@@ -146,11 +146,9 @@ if [ -z "$ANDROID_STORAGE" ]; then
 fi
 
 # Create /sdcard if it doesn't exist or is not accessible
-if [ ! -e "/sdcard" ] || [ ! -r "/sdcard" ] || [ ! -x "/sdcard" ]; then
+if [ ! -e "/sdcard" ] || [ ! -r "/sdcard" ] || [ ! -x "/sdcard" ] || ! ls "/sdcard" >/dev/null 2>&1; then
     # Remove existing /sdcard if it's not working
-    if [ -e "/sdcard" ] && ! ls "/sdcard" >/dev/null 2>&1; then
-        rm -rf /sdcard 2>/dev/null || true
-    fi
+    rm -rf /sdcard 2>/dev/null || true
 
     # Try to create symlink
     if ln -sf "$ANDROID_STORAGE" /sdcard 2>/dev/null; then
