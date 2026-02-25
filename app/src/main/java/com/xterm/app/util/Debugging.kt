@@ -10,7 +10,7 @@ package com.xterm.app.util
 
 import android.net.Uri
 import android.os.Build
-import com.xterm.app.BuildConfig
+import com.xterm.BuildConfig
 
 /**
  * Utilities to aid in debugging
