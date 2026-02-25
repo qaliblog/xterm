@@ -507,7 +507,6 @@ final class TermuxInstaller {
             }
         }.start();
         */
-    }
 
     public static void showBootstrapErrorDialog(Activity activity, Runnable whenDone, String message) {
         Logger.logErrorExtended(LOG_TAG, "Bootstrap Error:\n" + message);
