@@ -13,13 +13,13 @@ import androidx.activity.viewModels
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.biometric.FingerprintDialogFragment
-import androidx.biometric.auth.AuthPromptCallback
-import androidx.biometric.auth.startClass2BiometricOrCredentialAuthentication
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentFactory
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.ViewModel
+import java.util.concurrent.Executor
 
 /**
  * Wrapper around AndroidX Biometrics library.
@@ -74,11 +74,25 @@ class DeviceAuthPrompt(private val activity: FragmentActivity) {
         check(onAuthFail != null)
 
         runCatching {
-            activity.startClass2BiometricOrCredentialAuthentication(
-                    title = title,
-                    confirmationRequired = false,
-                    callback = PromptCallback()
-            )
+            val executor: Executor = ContextCompat.getMainExecutor(activity)
+            val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                .setTitle(title)
+                .setAllowedAuthenticators(
+                    BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                )
+                .build()
+            val biometricPrompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    onAuthSuccess?.invoke()
+                    onAuthFinished()
+                }
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    Log.e(javaClass.simpleName, "Authentication error: $errString [$errorCode] ")
+                    onAuthFail?.invoke(errString.toString())
+                    onAuthFinished()
+                }
+            })
+            biometricPrompt.authenticate(promptInfo)
 
             viewModel.isPromptShown = true
             viewModel.promptTitle = title
@@ -91,19 +105,6 @@ class DeviceAuthPrompt(private val activity: FragmentActivity) {
 
     private fun onAuthFinished() {
         viewModel.isPromptShown = false
-    }
-
-    private inner class PromptCallback : AuthPromptCallback() {
-        override fun onAuthenticationSucceeded(activity: FragmentActivity?, result: BiometricPrompt.AuthenticationResult) {
-            onAuthSuccess?.invoke()
-            onAuthFinished()
-        }
-
-        override fun onAuthenticationError(activity: FragmentActivity?, errorCode: Int, errString: CharSequence) {
-            Log.e(javaClass.simpleName, "Authentication error: $errString [$errorCode] ")
-            onAuthFail?.invoke(errString.toString())
-            onAuthFinished()
-        }
     }
 
 
