@@ -119,6 +119,9 @@ final class TermuxInstaller {
                         installRemoteRootfs(url, rootfsDir);
                     }
 
+                    // Ensure rootfs has /root (and optionally /home) so session starts in home, not at /
+                    ensureRootfsHomeDirectory(rootfsDir);
+
                     preferences.setRootfsInstalled(true);
                     activity.runOnUiThread(whenDone);
                 } catch (final Exception e) {
@@ -154,6 +157,8 @@ final class TermuxInstaller {
         }
         Os.chmod(prootFile.getAbsolutePath(), 0700);
 
+        installXtermSetupStorageScript(context);
+
         // Also ensure Termux bootstrap is available as base
         File usrDir = new File(context.getFilesDir(), "usr");
         if (!usrDir.exists() || FileUtils.isTermuxPrefixDirectoryEmpty()) {
@@ -161,6 +166,19 @@ final class TermuxInstaller {
             try (java.io.InputStream in = context.getAssets().open("bootstraps/bootstrap-" + arch + ".zip")) {
                 extractZip(in, usrDir);
             }
+        }
+    }
+
+    /** Ensure rootfs has /root (and /home if needed) so the session starts in the home folder, not at the rootfs base /. */
+    private static void ensureRootfsHomeDirectory(File rootfsDir) {
+        File rootDir = new File(rootfsDir, "root");
+        if (!rootDir.exists()) {
+            rootDir.mkdirs();
+            Logger.logInfo(LOG_TAG, "Created /root in rootfs for session start directory");
+        }
+        File homeDir = new File(rootfsDir, "home");
+        if (!homeDir.exists()) {
+            homeDir.mkdirs();
         }
     }
 
@@ -172,6 +190,23 @@ final class TermuxInstaller {
             if (abi.contains("x86") || abi.contains("i686")) return "i686";
         }
         return "aarch64"; // fallback
+    }
+
+    private static void installXtermSetupStorageScript(Context context) {
+        try {
+            File binDir = new File(context.getFilesDir(), "bin");
+            if (!binDir.exists()) binDir.mkdirs();
+            File script = new File(binDir, "xterm-setup-storage");
+            try (java.io.InputStream in = context.getAssets().open("xterm-setup-storage");
+                 java.io.FileOutputStream out = new java.io.FileOutputStream(script)) {
+                byte[] buf = new byte[4096];
+                int n;
+                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            }
+            script.setExecutable(true, false);
+        } catch (Exception e) {
+            Logger.logError(LOG_TAG, "Failed to install xterm-setup-storage: " + e.getMessage());
+        }
     }
 
     private static void downloadFile(String urlStr, File dest) throws IOException {
@@ -510,7 +545,7 @@ final class TermuxInstaller {
     }
 
     static void setupStorageSymlinks(final Context context) {
-        final String LOG_TAG = "termux-storage";
+        final String LOG_TAG = "xterm-storage";
         final String title = TermuxConstants.TERMUX_APP_NAME + " Setup Storage Error";
 
         Logger.logInfo(LOG_TAG, "Setting up storage symlinks.");

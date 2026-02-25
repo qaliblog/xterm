@@ -14,6 +14,7 @@ import com.termux.shared.shell.command.environment.ShellCommandShellEnvironment;
 import com.termux.shared.termux.TermuxBootstrap;
 import com.termux.shared.termux.TermuxConstants;
 import com.termux.shared.termux.shell.TermuxShellUtils;
+import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 
 import java.nio.charset.Charset;
 import java.util.HashMap;
@@ -78,16 +79,29 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         environment.put(ENV_HOME, TermuxConstants.TERMUX_HOME_DIR_PATH);
         environment.put(ENV_PREFIX, TermuxConstants.TERMUX_PREFIX_DIR_PATH);
 
+        // When rootfs is used: avoid dpkg-preconfigure/apt errors, set HOME/PWD to /root to reduce getcwd() calls
+        TermuxAppSharedPreferences appPrefs = TermuxAppSharedPreferences.build(currentPackageContext);
+        if (appPrefs != null && appPrefs.isRootfsInstalled()) {
+            environment.put("DEBIAN_FRONTEND", "noninteractive");
+            environment.put(ENV_HOME, "/root");
+            environment.put("PWD", "/root");
+            environment.put("OLDPWD", "/root");
+        }
+
         // If failsafe is not enabled, then we keep default PATH and TMPDIR so that system binaries can be used
         if (!isFailSafe) {
             environment.put(ENV_TMPDIR, TermuxConstants.TERMUX_TMP_PREFIX_DIR_PATH);
+            String pathPrefix = TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH;
+            if (appPrefs != null && appPrefs.isRootfsInstalled()) {
+                pathPrefix = "/.xterm-app-bin:" + pathPrefix;
+            }
             if (TermuxBootstrap.isAppPackageVariantAPTAndroid5()) {
                 // Termux in android 5/6 era shipped busybox binaries in applets directory
-                environment.put(ENV_PATH, TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH + ":" + TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH + "/applets");
+                environment.put(ENV_PATH, pathPrefix + ":" + TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH + "/applets");
                 environment.put(ENV_LD_LIBRARY_PATH, TermuxConstants.TERMUX_LIB_PREFIX_DIR_PATH);
             } else {
                 // Termux binaries on Android 7+ rely on DT_RUNPATH, so LD_LIBRARY_PATH should be unset by default
-                environment.put(ENV_PATH, TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH);
+                environment.put(ENV_PATH, pathPrefix);
                 environment.remove(ENV_LD_LIBRARY_PATH);
             }
         }

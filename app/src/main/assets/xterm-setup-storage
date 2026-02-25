@@ -1,0 +1,9 @@
+#!/bin/sh
+# Request storage permissions and set up storage symlinks for xterm.
+# Run this if you see "Storage access not available" or need ~/storage symlinks.
+PACKAGE=com.xterm
+ACTION="${PACKAGE}.app.request_storage_permissions"
+# Use /.system-bin/am when running inside proot (bound from /system/bin), else am from PATH
+AM=am
+[ -x /.system-bin/am ] && AM=/.system-bin/am
+"$AM" start -n "${PACKAGE}/.app.TermuxActivity" -a "${ACTION}" 2>/dev/null || true

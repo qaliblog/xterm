@@ -322,6 +322,12 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
         // notification with the crash details if it did
         TermuxCrashUtils.notifyAppCrashFromCrashLogFile(this, LOG_TAG);
 
+        // Handle xterm-setup-storage: activity was started with request_storage_permissions
+        if (getIntent() != null && TERMUX_ACTIVITY.ACTION_REQUEST_PERMISSIONS.equals(getIntent().getAction())) {
+            requestStoragePermission(false);
+            setIntent(null);
+        }
+
         mIsOnResumeAfterOnCreate = false;
     }
 

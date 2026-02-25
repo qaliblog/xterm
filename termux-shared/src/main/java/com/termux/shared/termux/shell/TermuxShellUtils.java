@@ -39,7 +39,9 @@ public class TermuxShellUtils {
             prootArgs.add(filesDir + "/bin/proot");
             prootArgs.add("-r");
             prootArgs.add(filesDir + "/rootfs");
+            // Use only one of -i/-0/-S; rootfs profile must not add another (avoids "option already specified" warning)
             prootArgs.add("-0");
+            // Start in /root (home folder), never at the rootfs base "/"
             prootArgs.add("-w");
             prootArgs.add("/root");
             prootArgs.add("-b");
@@ -50,6 +52,12 @@ public class TermuxShellUtils {
             prootArgs.add("/sys");
             prootArgs.add("-b");
             prootArgs.add("/sdcard");
+            // Bind app bin so xterm-setup-storage is available inside rootfs at /.xterm-app-bin
+            prootArgs.add("-b");
+            prootArgs.add(filesDir + "/bin:/.xterm-app-bin");
+            // Bind system bin so 'am' is available for xterm-setup-storage inside rootfs
+            prootArgs.add("-b");
+            prootArgs.add("/system/bin:/.system-bin");
 
             String osType = preferences.getRootfsOsType();
             String shell = "/bin/sh";

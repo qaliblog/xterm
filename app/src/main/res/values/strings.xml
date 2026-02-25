@@ -40,7 +40,10 @@
         \nBootstrap binaries compiled for &TERMUX_APP_NAME; have hardcoded $PREFIX path and cannot be installed
         under any path other than:\n%1$s.</string>
 
-
+    <!-- Storage setup (xterm-setup-storage; use this name instead of termos-setup-storage) -->
+    <string name="setup_storage_command">xterm-setup-storage</string>
+    <string name="msg_storage_access_not_available">Storage access not available</string>
+    <string name="msg_storage_setup_run_again">Please grant storage permissions in the settings that just opened.\nThen run \'%1$s\' again.</string>
 
     <!-- Terminal Sidebar and Shortcuts -->
     <string name="action_new_session">New session</string>
