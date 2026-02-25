@@ -66,7 +66,7 @@ import static com.termux.shared.termux.TermuxConstants.TERMUX_STAGING_PREFIX_DIR
  * <p/>
  * (5.2) For every other zip entry, extract it into $STAGING_PREFIX and set execute permissions if necessary.
  */
-final class TermuxInstaller {
+public final class TermuxInstaller {
 
     private static final String LOG_TAG = "TermuxInstaller";
 
@@ -161,7 +161,7 @@ final class TermuxInstaller {
 
         // Also ensure Termux bootstrap is available as base
         File usrDir = new File(context.getFilesDir(), "usr");
-        if (!usrDir.exists() || FileUtils.isTermuxPrefixDirectoryEmpty()) {
+        if (!usrDir.exists() || TermuxFileUtils.isTermuxPrefixDirectoryEmpty()) {
             Logger.logInfo(LOG_TAG, "Installing bundled Termux bootstrap");
             try (java.io.InputStream in = context.getAssets().open("bootstraps/bootstrap-" + arch + ".zip")) {
                 extractZip(in, usrDir);
